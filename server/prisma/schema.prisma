@@ -1,0 +1,217 @@
+// InmoGestión — Prisma schema for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  AGENT
+  ADMIN
+}
+
+enum Currency {
+  ARS
+  USD
+}
+
+enum PropertyType {
+  CASA
+  DEPTO
+  OFICINA
+  PH
+  LOCAL
+  TERRENO
+}
+
+enum PropertyStatus {
+  DISPONIBLE
+  RESERVADO
+  VENDIDO
+  ALQUILADO
+}
+
+enum LeadSource {
+  WHATSAPP
+  WEB
+  REFERIDO
+  PORTAL
+  OTRO
+}
+
+enum LeadStage {
+  NUEVO
+  CONTACTADO
+  VISITA_AGENDADA
+  OFERTA_REALIZADA
+  CERRADO_GANADO
+  CERRADO_PERDIDO
+}
+
+enum VisitType {
+  PRESENCIAL
+  VIRTUAL
+}
+
+enum VisitStatus {
+  PENDIENTE
+  REALIZADA
+  CANCELADA
+}
+
+enum Portal {
+  ZONAPROP
+  ARGENPROP
+  MERCADOINMUEBLE
+  PROPERATI
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCING
+  SUCCESS
+  ERROR
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(AGENT)
+  avatarUrl String?
+  phone     String?
+  createdAt DateTime @default(now())
+
+  properties    Property[]
+  leads         Lead[]
+  visits        Visit[]
+  notes         Note[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Property {
+  id           String         @id @default(cuid())
+  title        String
+  description  String?
+  address      String
+  neighborhood String
+  city         String         @default("Buenos Aires")
+  price        Decimal        @db.Decimal(15, 2)
+  currency     Currency       @default(ARS)
+  type         PropertyType
+  status       PropertyStatus @default(DISPONIBLE)
+  rooms        Int
+  bathrooms    Int
+  area         Decimal        @db.Decimal(10, 2)
+  amenities    String[]
+  photos       String[]
+  agentId      String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  agent       User         @relation(fields: [agentId], references: [id])
+  visits      Visit[]
+  notes       Note[]
+  portalSyncs PortalSync[]
+  leads       Lead[]       @relation("LeadProperties")
+
+  @@index([agentId])
+  @@index([status])
+  @@index([type])
+}
+
+model Lead {
+  id             String     @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
+  budget         Decimal?   @db.Decimal(15, 2)
+  budgetCurrency Currency   @default(ARS)
+  source         LeadSource
+  stage          LeadStage  @default(NUEVO)
+  agentId        String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  agent                User       @relation(fields: [agentId], references: [id])
+  notes                Note[]
+  visits               Visit[]
+  interestedProperties Property[] @relation("LeadProperties")
+
+  @@index([agentId])
+  @@index([stage])
+  @@index([source])
+}
+
+model Visit {
+  id          String      @id @default(cuid())
+  leadId      String
+  propertyId  String
+  agentId     String
+  scheduledAt DateTime
+  type        VisitType
+  status      VisitStatus @default(PENDIENTE)
+  notes       String?
+  createdAt   DateTime    @default(now())
+
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agent    User     @relation(fields: [agentId], references: [id])
+
+  @@index([leadId])
+  @@index([propertyId])
+  @@index([agentId])
+  @@index([scheduledAt])
+}
+
+model Note {
+  id         String   @id @default(cuid())
+  content    String
+  leadId     String?
+  propertyId String?
+  authorId   String
+  createdAt  DateTime @default(now())
+
+  lead     Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id])
+
+  @@index([leadId])
+  @@index([propertyId])
+}
+
+model PortalSync {
+  id           String     @id @default(cuid())
+  propertyId   String
+  portal       Portal
+  externalId   String?
+  lastSyncedAt DateTime?
+  status       SyncStatus @default(PENDING)
+  errorMessage String?
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, portal])
+  @@index([propertyId])
+}
