@@ -54,6 +54,19 @@ export async function reassignLead(leadId: string, newAgentId: string) {
 }
 
 /**
+ * Deletes an agent account. Cannot delete yourself.
+ */
+export async function deleteAgent(targetId: string, requesterId: string) {
+  if (targetId === requesterId) {
+    throw new AppError(400, "No podés eliminar tu propia cuenta");
+  }
+  const user = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!user) throw new AppError(404, "Usuario no encontrado");
+
+  await prisma.user.delete({ where: { id: targetId } });
+}
+
+/**
  * Returns platform-wide summary stats for the admin dashboard.
  */
 export async function getAdminStats() {

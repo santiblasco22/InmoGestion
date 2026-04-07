@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Users, Building2, CalendarDays, TrendingUp, RefreshCw, ArrowRightLeft } from "lucide-react";
+import { Loader2, Users, Building2, CalendarDays, TrendingUp, RefreshCw, ArrowRightLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/useAuthStore";
 
 function StatCard({ title, value, icon: Icon, color }: { title: string; value: number; icon: React.ElementType; color: string }) {
   return (
@@ -85,12 +86,28 @@ function ReassignDialog({
 }
 
 export default function AdminPage() {
+  const { user: me } = useAuthStore();
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
   const [agents, setAgents] = useState<ApiAgentStats[]>([]);
   const [leads, setLeads] = useState<ApiLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [reassignLead, setReassignLead] = useState<ApiLead | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [tab, setTab] = useState<"agents" | "leads">("agents");
+
+  const handleDeleteAgent = async (agent: ApiAgentStats) => {
+    if (!confirm(`¿Eliminar al usuario "${agent.name}" (${agent.email})? Esta acción es irreversible.`)) return;
+    setDeletingId(agent.id);
+    try {
+      await adminApi.deleteAgent(agent.id);
+      toast.success(`Usuario "${agent.name}" eliminado`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar el usuario");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -180,6 +197,7 @@ export default function AdminPage() {
                 <th className="px-5 py-3 font-medium text-center">Leads</th>
                 <th className="px-5 py-3 font-medium text-center">Visitas</th>
                 <th className="px-5 py-3 font-medium">Miembro desde</th>
+                <th className="px-5 py-3 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -206,6 +224,21 @@ export default function AdminPage() {
                   <td className="px-5 py-3 text-center font-semibold">{a._count.visits}</td>
                   <td className="px-5 py-3 text-muted-foreground text-xs">
                     {new Date(a.createdAt).toLocaleDateString("es-AR", { year: "numeric", month: "short", day: "numeric" })}
+                  </td>
+                  <td className="px-5 py-3">
+                    {a.id !== me?.id && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteAgent(a)}
+                        disabled={deletingId === a.id}
+                      >
+                        {deletingId === a.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

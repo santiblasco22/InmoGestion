@@ -258,6 +258,8 @@ export const adminApi = {
   leads: () => api.get<{ leads: ApiLead[] }>("/admin/leads"),
   reassignLead: (leadId: string, agentId: string) =>
     api.put<{ lead: ApiLead }>(`/admin/leads/${leadId}/reassign`, { agentId }),
+  deleteAgent: (agentId: string) =>
+    api.delete<void>(`/admin/agents/${agentId}`),
 };
 
 // ─── Portals ─────────────────────────────────────────────────────────────────

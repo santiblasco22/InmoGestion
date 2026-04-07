@@ -11,5 +11,6 @@ router.get("/stats", adminController.getStats);
 router.get("/agents", adminController.listAgents);
 router.get("/leads", adminController.listAllLeads);
 router.put("/leads/:id/reassign", adminController.reassignLead);
+router.delete("/agents/:id", adminController.deleteAgent);
 
 export default router;

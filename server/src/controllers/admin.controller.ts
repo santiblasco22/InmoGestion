@@ -31,3 +31,9 @@ export const reassignLead = asyncHandler(async (req: Request, res: Response) => 
   const lead = await adminService.reassignLead(req.params.id, agentId);
   res.json({ lead });
 });
+
+/** DELETE /api/admin/agents/:id */
+export const deleteAgent = asyncHandler(async (req: Request, res: Response) => {
+  await adminService.deleteAgent(req.params.id, req.user.id);
+  res.status(204).send();
+});
