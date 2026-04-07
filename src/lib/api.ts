@@ -239,6 +239,27 @@ export const analyticsApi = {
     api.get<{ stage: string; count: number }[]>("/analytics/pipeline-funnel"),
 };
 
+// ─── Admin ───────────────────────────────────────────────────────────────────
+
+export interface ApiAgentStats {
+  id: string; email: string; name: string; role: string;
+  phone?: string | null; createdAt: string;
+  _count: { properties: number; leads: number; visits: number };
+}
+
+export interface ApiAdminStats {
+  totalAgents: number; totalLeads: number; totalProperties: number;
+  totalVisits: number; openLeads: number;
+}
+
+export const adminApi = {
+  stats: () => api.get<ApiAdminStats>("/admin/stats"),
+  agents: () => api.get<{ agents: ApiAgentStats[] }>("/admin/agents"),
+  leads: () => api.get<{ leads: ApiLead[] }>("/admin/leads"),
+  reassignLead: (leadId: string, agentId: string) =>
+    api.put<{ lead: ApiLead }>(`/admin/leads/${leadId}/reassign`, { agentId }),
+};
+
 // ─── Portals ─────────────────────────────────────────────────────────────────
 
 export const portalsApi = {

@@ -7,6 +7,7 @@ import {
   Globe,
   Settings,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -41,6 +42,11 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
+  const allNavItems = [
+    ...navItems,
+    ...(user?.role === "ADMIN" ? [{ title: "Admin", url: "/admin", icon: ShieldCheck }] : []),
+  ];
+
   const handleLogout = async () => {
     await logout();
     toast.success("Sesión cerrada");
@@ -65,7 +71,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {allNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Plus, CalendarDays, Clock, MapPin, User, Video, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarDays, Clock, MapPin, User, Video, CheckCircle2, XCircle, Loader2, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
 
 const daysOfWeek = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
@@ -125,9 +125,89 @@ function ScheduleVisitDialog({ open, onClose, initialDate }: { open: boolean; on
   );
 }
 
+// ─── Week view ────────────────────────────────────────────────────────────────
+
+function WeekView({
+  weekStart, visits, onVisitClick, onDayClick,
+}: {
+  weekStart: Date;
+  visits: ApiVisit[];
+  onVisitClick: (v: ApiVisit) => void;
+  onDayClick: (dateStr: string) => void;
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    return d;
+  });
+
+  return (
+    <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+      <div className="grid grid-cols-7 border-b bg-muted/30">
+        {days.map((d) => {
+          const dateStr = d.toISOString().split("T")[0];
+          const isToday = dateStr === today;
+          return (
+            <div key={dateStr} className="px-2 py-2.5 text-center border-r last:border-0">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase">{daysOfWeek[d.getDay()]}</p>
+              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold mt-0.5 ${isToday ? "bg-accent text-accent-foreground" : "text-foreground"}`}>
+                {d.getDate()}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-7 min-h-[300px]">
+        {days.map((d) => {
+          const dateStr = d.toISOString().split("T")[0];
+          const dayVisits = visits.filter((v) => new Date(v.scheduledAt).toISOString().split("T")[0] === dateStr)
+            .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+          return (
+            <div
+              key={dateStr}
+              className="border-r last:border-0 p-1.5 hover:bg-muted/20 cursor-pointer min-h-[200px]"
+              onClick={() => onDayClick(dateStr)}
+            >
+              <div className="space-y-1">
+                {dayVisits.map((v) => {
+                  const uiv = toUIVisit(v);
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={(e) => { e.stopPropagation(); onVisitClick(v); }}
+                      className={`w-full text-left rounded px-1.5 py-1 text-[10px] border-l-2 ${visitColor[v.type]} hover:brightness-95`}
+                    >
+                      <p className="font-semibold text-foreground">{uiv.time}</p>
+                      <p className="truncate text-foreground">{uiv.clientName}</p>
+                      <p className="truncate text-muted-foreground">{uiv.propertyTitle}</p>
+                    </button>
+                  );
+                })}
+                {dayVisits.length === 0 && (
+                  <p className="text-[10px] text-muted-foreground/50 text-center pt-4">—</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function CalendarPage() {
   const { visits, visitsLoading } = useAppStore();
+  const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [currentDate, setCurrentDate] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay()); // Sunday
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [selectedVisit, setSelectedVisit] = useState<ApiVisit | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -136,6 +216,16 @@ export default function CalendarPage() {
   const month = currentDate.getMonth();
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDay(year, month);
+
+  // Week navigation helpers
+  const weekLabel = (() => {
+    const end = new Date(weekStart);
+    end.setDate(weekStart.getDate() + 6);
+    return `${weekStart.getDate()} ${monthNames[weekStart.getMonth()].slice(0, 3)} — ${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
+  })();
+
+  const prevWeek = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+  const nextWeek = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -159,9 +249,18 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h1 className="text-2xl font-semibold">Calendario</h1><p className="text-sm text-muted-foreground">Gestión de visitas y agenda</p></div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex border rounded-md overflow-hidden">
+            <Button variant={viewMode === "month" ? "default" : "ghost"} size="sm" className="h-8 rounded-none px-3 gap-1.5" onClick={() => setViewMode("month")}>
+              <LayoutGrid className="h-3.5 w-3.5" />Mes
+            </Button>
+            <Button variant={viewMode === "week" ? "default" : "ghost"} size="sm" className="h-8 rounded-none px-3 gap-1.5" onClick={() => setViewMode("week")}>
+              <List className="h-3.5 w-3.5" />Semana
+            </Button>
+          </div>
           <Button className="bg-primary text-primary-foreground" size="sm" onClick={() => { setScheduleDate(""); setScheduleOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />Agendar Visita
           </Button>
@@ -170,6 +269,20 @@ export default function CalendarPage() {
 
       {visitsLoading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : viewMode === "week" ? (
+        <>
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="icon" onClick={prevWeek}><ChevronLeft className="h-4 w-4" /></Button>
+            <p className="text-sm font-semibold">{weekLabel}</p>
+            <Button variant="ghost" size="icon" onClick={nextWeek}><ChevronRight className="h-4 w-4" /></Button>
+          </div>
+          <WeekView
+            weekStart={weekStart}
+            visits={visits}
+            onVisitClick={setSelectedVisit}
+            onDayClick={(dateStr) => { setScheduleDate(dateStr); setScheduleOpen(true); }}
+          />
+        </>
       ) : (
         <div className="rounded-lg border bg-card shadow-sm">
           <div className="flex items-center justify-between border-b px-5 py-3">
