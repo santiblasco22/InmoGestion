@@ -1,10 +1,13 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
 import { prisma } from "../lib/prisma";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { AppError } from "../middleware/errorHandler";
 import { sendWelcomeEmail, sendPasswordResetEmail } from "../lib/resend";
 import { redisConnection } from "../lib/queue";
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const RESET_TOKEN_TTL = 60 * 60; // 1 hour in seconds
 const RESET_KEY = (token: string) => `pwd-reset:${token}`;
@@ -51,6 +54,50 @@ export async function register(input: RegisterInput): Promise<{ tokens: AuthToke
   sendWelcomeEmail(user.email, user.name).catch(() => {});
 
   return { tokens, user };
+}
+
+/**
+ * Verifies a Google ID token, then finds-or-creates a user.
+ * Links accounts if the email already exists via password login.
+ */
+export async function loginWithGoogle(credential: string): Promise<{ tokens: AuthTokens; user: object }> {
+  const ticket = await googleClient.verifyIdToken({
+    idToken: credential,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  }).catch(() => { throw new AppError(401, "Token de Google inválido", "INVALID_GOOGLE_TOKEN"); });
+
+  const payload = ticket.getPayload();
+  if (!payload?.email || !payload.sub) {
+    throw new AppError(401, "No se pudo obtener la información de Google", "INVALID_GOOGLE_PAYLOAD");
+  }
+
+  const { sub: googleId, email, name = "Usuario", picture: avatarUrl } = payload;
+
+  // Try to find by googleId first, then by email (link existing account)
+  let user = await prisma.user.findFirst({
+    where: { OR: [{ googleId }, { email }] },
+  });
+
+  if (user) {
+    // Link googleId if not set yet
+    if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId, avatarUrl: user.avatarUrl ?? avatarUrl },
+      });
+    }
+  } else {
+    // Create new user — no usable password (random hash they'll never know)
+    const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), SALT_ROUNDS);
+    user = await prisma.user.create({
+      data: { email, name, googleId, avatarUrl, password: randomPassword },
+    });
+    sendWelcomeEmail(email, name).catch(() => {});
+  }
+
+  const tokensResult = await generateAndStoreTokens(user.id);
+  const { password: _, ...safeUser } = user;
+  return { tokens: tokensResult, user: safeUser };
 }
 
 /**

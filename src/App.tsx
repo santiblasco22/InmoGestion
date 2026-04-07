@@ -17,6 +17,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AdminPage from "./pages/AdminPage";
+import ActivityPage from "./pages/ActivityPage";
 import PublicPropertyPage from "./pages/PublicPropertyPage";
 import NotFound from "./pages/NotFound.tsx";
 import { useAuthStore } from "./store/useAuthStore";
@@ -41,9 +42,9 @@ function DataBootstrap() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      fetchLeads({ limit: "200" }),
-      fetchProperties({ limit: "100" }),
-      fetchVisits({ limit: "200" }),
+      fetchLeads({ limit: "100", page: 1 }),
+      fetchProperties({ limit: 12, page: 1 }),
+      fetchVisits({ limit: "100" }),
       fetchAnalytics(),
     ]).catch((err) => {
       // If token expired and refresh failed, log out cleanly via React Router
@@ -90,6 +91,7 @@ const App = () => {
                       <Route path="/portal" element={<ClientPortalPage />} />
                       <Route path="/configuracion" element={<SettingsPage />} />
                       <Route path="/admin" element={<AdminPage />} />
+                      <Route path="/actividad" element={<ActivityPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppLayout>

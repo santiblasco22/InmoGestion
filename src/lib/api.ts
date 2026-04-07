@@ -141,6 +141,8 @@ export const authApi = {
     api.post<{ message: string }>("/auth/forgot-password", { email }),
   resetPassword: (token: string, newPassword: string) =>
     api.post<{ message: string }>("/auth/reset-password", { token, newPassword }),
+  googleLogin: (credential: string) =>
+    api.post<{ tokens: { accessToken: string; refreshToken: string }; user: ApiUser }>("/auth/google", { credential }),
 };
 
 // ─── Properties ──────────────────────────────────────────────────────────────
@@ -201,6 +203,18 @@ export const leadsApi = {
 
   getNotes: (id: string) => api.get<ApiNote[]>(`/leads/${id}/notes`),
 
+  updateNote: (leadId: string, noteId: string, content: string) =>
+    api.patch<ApiNote>(`/leads/${leadId}/notes/${noteId}`, { content }),
+
+  deleteNote: (leadId: string, noteId: string) =>
+    api.delete<void>(`/leads/${leadId}/notes/${noteId}`),
+
+  addProperty: (leadId: string, propertyId: string) =>
+    api.post<ApiLead>(`/leads/${leadId}/properties/${propertyId}`),
+
+  removeProperty: (leadId: string, propertyId: string) =>
+    api.delete<ApiLead>(`/leads/${leadId}/properties/${propertyId}`),
+
   import: (rows: { name: string; email?: string; phone?: string; budget?: number; source?: string; stage?: string }[]) =>
     api.post<{ created: number; skipped: number }>("/leads/import", rows),
 };
@@ -232,6 +246,17 @@ export const visitsApi = {
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 
+export interface ApiActivityItem {
+  id: string;
+  type: "stage" | "visit_scheduled" | "new_lead" | "price_change";
+  content: string;
+  leadId: string | null;
+  leadName: string | null;
+  propertyId: string | null;
+  propertyTitle: string | null;
+  createdAt: string;
+}
+
 export const analyticsApi = {
   summary: () => api.get<ApiAnalyticsSummary>("/analytics/summary"),
   leadsOverTime: (months = 6) =>
@@ -240,6 +265,8 @@ export const analyticsApi = {
     api.get<{ propertyId: string; title: string; visits: number }[]>("/analytics/visits-per-property"),
   pipelineFunnel: () =>
     api.get<{ stage: string; count: number }[]>("/analytics/pipeline-funnel"),
+  activityFeed: (limit = 60) =>
+    api.get<ApiActivityItem[]>(`/analytics/activity?limit=${limit}`),
 };
 
 // ─── Admin ───────────────────────────────────────────────────────────────────

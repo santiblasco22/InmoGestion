@@ -70,6 +70,18 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   res.status(204).send();
 });
 
+/** POST /api/leads/:id/properties/:propertyId */
+export const addProperty = asyncHandler(async (req: Request, res: Response) => {
+  const lead = await leadsService.addLeadProperty(req.params.id, req.user.id, req.params.propertyId);
+  res.json(lead);
+});
+
+/** DELETE /api/leads/:id/properties/:propertyId */
+export const removeProperty = asyncHandler(async (req: Request, res: Response) => {
+  const lead = await leadsService.removeLeadProperty(req.params.id, req.user.id, req.params.propertyId);
+  res.json(lead);
+});
+
 /** POST /api/leads/:id/notes */
 export const addNote = asyncHandler(async (req: Request, res: Response) => {
   const { content } = noteSchema.parse(req.body);
@@ -81,6 +93,19 @@ export const addNote = asyncHandler(async (req: Request, res: Response) => {
 export const getNotes = asyncHandler(async (req: Request, res: Response) => {
   const notes = await leadsService.getLeadNotes(req.params.id, req.user.id);
   res.json(notes);
+});
+
+/** PATCH /api/leads/:id/notes/:noteId */
+export const updateNote = asyncHandler(async (req: Request, res: Response) => {
+  const { content } = noteSchema.parse(req.body);
+  const note = await leadsService.updateNote(req.params.noteId, req.user.id, content);
+  res.json(note);
+});
+
+/** DELETE /api/leads/:id/notes/:noteId */
+export const deleteNote = asyncHandler(async (req: Request, res: Response) => {
+  await leadsService.deleteNote(req.params.noteId, req.user.id);
+  res.status(204).send();
 });
 
 const importRowSchema = z.object({

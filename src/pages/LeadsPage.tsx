@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors, useDroppable, useDraggable,
@@ -15,9 +15,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X, Upload, GitCommitHorizontal, CalendarDays } from "lucide-react";
+import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X, Upload, GitCommitHorizontal, CalendarDays, CheckSquare, Square, Bell, AlarmClock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useLocation } from "react-router-dom";
 
 type Stage = ApiLead["stage"];
 
@@ -123,19 +124,46 @@ const WA_TEMPLATES: Record<Stage, { label: string; message: (name: string, prope
 
 // ─── Lead detail panel ────────────────────────────────────────────────────────
 
+// ─── Note parsers ─────────────────────────────────────────────────────────────
+
+function parseTarea(note: { id: string; content: string; createdAt: string }) {
+  try {
+    const data = JSON.parse(note.content.replace("[TAREA] ", ""));
+    return { id: note.id, title: data.title as string, done: Boolean(data.done), dueDate: data.dueDate as string | undefined };
+  } catch { return null; }
+}
+
+function parseRecordatorio(note: { id: string; content: string; createdAt: string }) {
+  try {
+    const data = JSON.parse(note.content.replace("[RECORDATORIO] ", ""));
+    return { id: note.id, title: data.title as string, dueAt: data.dueAt as string };
+  } catch { return null; }
+}
+
 function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => void }) {
-  const { leads, addNote, updateLeadStage, deleteLead, properties } = useAppStore();
+  const { leads, addNote, updateNote, deleteNote, updateLeadStage, deleteLead, properties, addLeadProperty, removeLeadProperty } = useAppStore();
   const { user } = useAuthStore();
   const lead = leads.find((l) => l.id === leadId) ?? null;
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
   const [firmaOpen, setFirmaOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"actividad" | "tareas" | "recordatorios">("actividad");
+  // Task form
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDue, setTaskDue] = useState("");
+  // Reminder form
+  const [remTitle, setRemTitle] = useState("");
+  const [remDate, setRemDate] = useState("");
+  // Properties
+  const [propSearch, setPropSearch] = useState("");
+  const [addingProp, setAddingProp] = useState(false);
 
   if (!lead) return null;
 
   const ui = toUILead(lead);
   const phone = (lead.phone ?? "").replace(/\D/g, "").slice(-10);
   const matchedProperty = properties.find((p) => lead.interestedProperties?.some((ip) => ip.id === p.id));
+  const interestedProps = lead.interestedProperties ?? [];
   const waTemplates = WA_TEMPLATES[lead.stage] ?? [];
 
   const openWa = (message: string) => {
@@ -193,13 +221,96 @@ function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => 
             <p className="text-muted-foreground">Presupuesto: <span className="font-semibold text-foreground">{ui.budget}</span></p>
           </div>
 
-          {/* Property thumbnail */}
-          {matchedProperty?.photos?.[0] && (
-            <div className="rounded-lg border overflow-hidden">
-              <img src={matchedProperty.photos[0]} alt={matchedProperty.title} className="w-full h-28 object-cover" />
-              <div className="p-3"><p className="text-xs font-medium text-foreground">{matchedProperty.title}</p></div>
+          {/* Propiedades de interés */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Propiedades de interés</h3>
+              <button
+                onClick={() => setAddingProp((v) => !v)}
+                className="flex items-center gap-1 text-xs text-accent hover:underline"
+              >
+                <Plus className="h-3 w-3" />{addingProp ? "Cancelar" : "Agregar"}
+              </button>
             </div>
-          )}
+
+            {/* Search to add */}
+            {addingProp && (
+              <div className="space-y-1">
+                <Input
+                  placeholder="Buscar propiedad..."
+                  value={propSearch}
+                  onChange={(e) => setPropSearch(e.target.value)}
+                  className="text-xs h-8"
+                  autoFocus
+                />
+                {propSearch.trim() && (
+                  <div className="rounded-lg border bg-background shadow-md max-h-40 overflow-y-auto">
+                    {properties
+                      .filter((p) =>
+                        !interestedProps.some((ip) => ip.id === p.id) &&
+                        (p.title.toLowerCase().includes(propSearch.toLowerCase()) ||
+                         p.address.toLowerCase().includes(propSearch.toLowerCase()))
+                      )
+                      .slice(0, 6)
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 border-b last:border-0 flex items-center gap-2"
+                          onClick={async () => {
+                            await addLeadProperty(lead.id, p.id);
+                            setPropSearch("");
+                            setAddingProp(false);
+                          }}
+                        >
+                          {p.photos[0] && <img src={p.photos[0]} className="h-8 w-10 object-cover rounded shrink-0" alt="" />}
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{p.title}</p>
+                            <p className="text-muted-foreground truncate">{p.address}</p>
+                          </div>
+                        </button>
+                      ))}
+                    {properties.filter((p) =>
+                      !interestedProps.some((ip) => ip.id === p.id) &&
+                      (p.title.toLowerCase().includes(propSearch.toLowerCase()) || p.address.toLowerCase().includes(propSearch.toLowerCase()))
+                    ).length === 0 && (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Property list */}
+            {interestedProps.length === 0 && !addingProp && (
+              <p className="text-xs text-muted-foreground italic">Sin propiedades asignadas.</p>
+            )}
+            <div className="space-y-1.5">
+              {interestedProps.map((ip) => {
+                const full = properties.find((p) => p.id === ip.id);
+                return (
+                  <div key={ip.id} className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
+                    {full?.photos?.[0] && (
+                      <img src={full.photos[0]} className="h-10 w-14 object-cover rounded shrink-0" alt="" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{ip.title}</p>
+                      <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
+                        ip.status === "DISPONIBLE" ? "bg-green-100 text-green-700"
+                        : ip.status === "RESERVADO" ? "bg-amber-100 text-amber-700"
+                        : "bg-muted text-muted-foreground"
+                      }`}>{ip.status}</span>
+                    </div>
+                    <button
+                      onClick={() => removeLeadProperty(lead.id, ip.id)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive p-1"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Stage */}
           <div className="space-y-1.5">
@@ -270,39 +381,188 @@ function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => 
             agentName={user?.name ?? "Agente"}
           />
 
-          {/* Notes + Activity */}
+          {/* Tabs: Actividad | Tareas | Recordatorios */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Historial de actividad</h3>
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {[...(lead.notes ?? [])].reverse().map((note, i) => {
-                const isActivity = note.content.startsWith("[ACTIVIDAD]");
-                const content = isActivity ? note.content.replace("[ACTIVIDAD] ", "") : note.content;
-                const date = note.createdAt?.split("T")[0] ?? "";
-                const Icon = isActivity
-                  ? content.includes("Visita") ? CalendarDays : GitCommitHorizontal
-                  : null;
-                return (
-                  <div key={i} className={`relative flex gap-2.5 ${isActivity ? "items-start" : "pl-4 border-l-2 border-accent/40"}`}>
-                    {isActivity && Icon && (
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted border shrink-0 mt-0.5">
-                        <Icon className="h-3 w-3 text-muted-foreground" />
-                      </div>
+            <div className="flex rounded-lg bg-muted p-1 gap-1">
+              {(["actividad", "tareas", "recordatorios"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors capitalize ${activeTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {tab === "actividad" ? "Actividad" : tab === "tareas" ? "Tareas" : "Recordatorios"}
+                </button>
+              ))}
+            </div>
+
+            {/* Actividad tab */}
+            {activeTab === "actividad" && (
+              <div className="space-y-3">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {[...(lead.notes ?? [])]
+                    .filter((n) => !n.content.startsWith("[TAREA]") && !n.content.startsWith("[RECORDATORIO]"))
+                    .reverse()
+                    .map((note, i) => {
+                      const isActivity = note.content.startsWith("[ACTIVIDAD]") || note.content.startsWith("[PRECIO]");
+                      const content = note.content.replace(/^\[(ACTIVIDAD|PRECIO)\] /, "");
+                      const date = note.createdAt?.split("T")[0] ?? "";
+                      const Icon = isActivity
+                        ? content.includes("Visita") ? CalendarDays : GitCommitHorizontal
+                        : null;
+                      return (
+                        <div key={i} className={`relative flex gap-2.5 ${isActivity ? "items-start" : "pl-4 border-l-2 border-accent/40"}`}>
+                          {isActivity && Icon && (
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted border shrink-0 mt-0.5">
+                              <Icon className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-[11px] text-muted-foreground">{date}</p>
+                            <p className={`text-xs ${isActivity ? "text-muted-foreground italic" : "text-sm text-foreground"}`}>{content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {(!lead.notes?.filter((n) => !n.content.startsWith("[TAREA]") && !n.content.startsWith("[RECORDATORIO]")).length) && (
+                    <p className="text-xs text-muted-foreground italic">Sin actividad aún.</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input placeholder="Agregar una nota..." value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleNote()} className="text-sm" />
+                  <Button size="icon" variant="outline" onClick={handleNote} disabled={!noteText.trim() || saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Tareas tab */}
+            {activeTab === "tareas" && (() => {
+              const tareas = (lead.notes ?? [])
+                .filter((n) => n.content.startsWith("[TAREA]"))
+                .map(parseTarea)
+                .filter(Boolean) as NonNullable<ReturnType<typeof parseTarea>>[];
+
+              const addTask = async () => {
+                if (!taskTitle.trim()) return;
+                setSaving(true);
+                try {
+                  await addNote(lead.id, `[TAREA] ${JSON.stringify({ title: taskTitle.trim(), done: false, dueDate: taskDue || undefined })}`);
+                  setTaskTitle(""); setTaskDue("");
+                } catch { toast.error("No se pudo agregar la tarea"); }
+                finally { setSaving(false); }
+              };
+
+              const toggleDone = async (t: NonNullable<ReturnType<typeof parseTarea>>) => {
+                await updateNote(lead.id, t.id, `[TAREA] ${JSON.stringify({ title: t.title, done: !t.done, dueDate: t.dueDate })}`);
+              };
+
+              const removeTask = async (id: string) => {
+                await deleteNote(lead.id, id);
+              };
+
+              const pending = tareas.filter((t) => !t.done);
+              const done = tareas.filter((t) => t.done);
+              const today = new Date().toISOString().split("T")[0];
+
+              return (
+                <div className="space-y-3">
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {pending.length === 0 && done.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">Sin tareas pendientes.</p>
                     )}
-                    <div className="min-w-0">
-                      <p className="text-[11px] text-muted-foreground">{date}</p>
-                      <p className={`text-xs ${isActivity ? "text-muted-foreground italic" : "text-sm text-foreground"}`}>{content}</p>
+                    {pending.map((t) => (
+                      <div key={t.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 border ${t.dueDate && t.dueDate < today ? "border-red-200 bg-red-50" : "bg-muted/30"}`}>
+                        <button onClick={() => toggleDone(t)} className="shrink-0 text-muted-foreground hover:text-primary">
+                          <Square className="h-4 w-4" />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{t.title}</p>
+                          {t.dueDate && <p className={`text-[10px] ${t.dueDate < today ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>Vence: {t.dueDate}</p>}
+                        </div>
+                        <button onClick={() => removeTask(t.id)} className="shrink-0 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ))}
+                    {done.map((t) => (
+                      <div key={t.id} className="flex items-center gap-2 rounded-lg px-3 py-2 bg-muted/20 opacity-60">
+                        <button onClick={() => toggleDone(t)} className="shrink-0 text-green-600"><CheckSquare className="h-4 w-4" /></button>
+                        <p className="text-xs line-through text-muted-foreground flex-1 truncate">{t.title}</p>
+                        <button onClick={() => removeTask(t.id)} className="shrink-0 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2 border-t pt-3">
+                    <Input placeholder="Nueva tarea..." value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} className="text-sm" />
+                    <div className="flex gap-2">
+                      <input type="date" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} className="flex-1 rounded-md border bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring" />
+                      <Button size="sm" onClick={addTask} disabled={!taskTitle.trim() || saving}>
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                        Agregar
+                      </Button>
                     </div>
                   </div>
-                );
-              })}
-              {(!lead.notes?.length) && <p className="text-xs text-muted-foreground italic">Sin actividad aún.</p>}
-            </div>
-            <div className="flex gap-2">
-              <Input placeholder="Agregar una nota..." value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleNote()} className="text-sm" />
-              <Button size="icon" variant="outline" onClick={handleNote} disabled={!noteText.trim() || saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </div>
+                </div>
+              );
+            })()}
+
+            {/* Recordatorios tab */}
+            {activeTab === "recordatorios" && (() => {
+              const reminders = (lead.notes ?? [])
+                .filter((n) => n.content.startsWith("[RECORDATORIO]"))
+                .map(parseRecordatorio)
+                .filter(Boolean) as NonNullable<ReturnType<typeof parseRecordatorio>>[];
+
+              const addReminder = async () => {
+                if (!remTitle.trim() || !remDate) return;
+                setSaving(true);
+                try {
+                  await addNote(lead.id, `[RECORDATORIO] ${JSON.stringify({ title: remTitle.trim(), dueAt: remDate })}`);
+                  setRemTitle(""); setRemDate("");
+                } catch { toast.error("No se pudo agregar el recordatorio"); }
+                finally { setSaving(false); }
+              };
+
+              const removeReminder = async (id: string) => { await deleteNote(lead.id, id); };
+              const today = new Date().toISOString().split("T")[0];
+              const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+
+              return (
+                <div className="space-y-3">
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {reminders.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">Sin recordatorios.</p>
+                    )}
+                    {[...reminders].sort((a, b) => a.dueAt.localeCompare(b.dueAt)).map((r) => {
+                      const isToday = r.dueAt === today;
+                      const isTomorrow = r.dueAt === tomorrow;
+                      const isPast = r.dueAt < today;
+                      return (
+                        <div key={r.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 border ${isPast ? "border-red-200 bg-red-50" : isToday ? "border-amber-200 bg-amber-50" : "bg-muted/30"}`}>
+                          <AlarmClock className={`h-4 w-4 shrink-0 ${isPast ? "text-red-500" : isToday ? "text-amber-600" : "text-muted-foreground"}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{r.title}</p>
+                            <p className={`text-[10px] ${isPast ? "text-red-500 font-semibold" : isToday ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>
+                              {isPast ? "Vencido · " : isToday ? "Hoy · " : isTomorrow ? "Mañana · " : ""}{r.dueAt}
+                            </p>
+                          </div>
+                          <button onClick={() => removeReminder(r.id)} className="shrink-0 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-2 border-t pt-3">
+                    <Input placeholder="¿Qué recordar?" value={remTitle} onChange={(e) => setRemTitle(e.target.value)} className="text-sm" />
+                    <div className="flex gap-2">
+                      <input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} className="flex-1 rounded-md border bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring" />
+                      <Button size="sm" onClick={addReminder} disabled={!remTitle.trim() || !remDate || saving}>
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
+                        Agregar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Delete */}
@@ -398,12 +658,23 @@ function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => voi
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
-  const { leads, updateLeadStage, leadsLoading, fetchLeads } = useAppStore();
+  const { leads, updateLeadStage, leadsLoading, leadsTotal, loadMoreLeads, fetchLeads } = useAppStore();
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const location = useLocation();
+
+  // Auto-open lead panel when navigating from Activity feed
+  useEffect(() => {
+    const openLeadId = (location.state as { openLeadId?: string } | null)?.openLeadId;
+    if (openLeadId) {
+      setSelectedLeadId(openLeadId);
+      // Clear state so it doesn't reopen on future renders
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -443,7 +714,7 @@ export default function LeadsPage() {
       <div className="flex items-center justify-between shrink-0 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Leads (CRM)</h1>
-          <p className="text-sm text-muted-foreground">Pipeline de ventas · {leads.length} leads totales</p>
+          <p className="text-sm text-muted-foreground">Pipeline de ventas · {leads.length}{leadsTotal > leads.length ? ` de ${leadsTotal}` : ""} leads</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -489,12 +760,22 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Load more */}
+      {leads.length < leadsTotal && !search && (
+        <div className="flex justify-center pt-1 shrink-0">
+          <Button variant="outline" size="sm" onClick={loadMoreLeads} disabled={leadsLoading}>
+            {leadsLoading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+            Cargar más leads ({leads.length} de {leadsTotal})
+          </Button>
+        </div>
+      )}
+
       <LeadPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
       <CreateLeadDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <ImportLeadsDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={() => fetchLeads({ limit: "200" })}
+        onImported={() => fetchLeads({ limit: 100, page: 1 })}
       />
     </div>
   );

@@ -91,6 +91,8 @@ model User {
   phone     String?
   createdAt DateTime @default(now())
 
+  googleId      String?  @unique
+
   properties    Property[]
   leads         Lead[]
   visits        Visit[]

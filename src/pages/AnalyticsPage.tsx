@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, CalendarDays, Handshake, TrendingUp, Loader2 } from "lucide-react";
+import { Building2, Users, CalendarDays, Handshake, TrendingUp, Loader2, ArrowRight } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, PieChart, Pie, Legend } from "recharts";
 import { useAppStore } from "@/store/useAppStore";
 import { analyticsApi } from "@/lib/api";
 
@@ -49,6 +49,22 @@ export default function AnalyticsPage() {
 
   const topProperties = properties.filter((p) => p.status !== "VENDIDO").slice(0, 6);
 
+  // Conversion rates between funnel stages
+  const funnelWithConversion = pipelineFunnel.map((item, i) => {
+    const prev = pipelineFunnel[i - 1];
+    const rate = prev && prev.count > 0 ? Math.round((item.count / prev.count) * 100) : null;
+    return { ...item, conversionRate: rate };
+  });
+
+  // Properties by status
+  const STATUS_LABELS: Record<string, string> = { DISPONIBLE: "Disponible", RESERVADO: "Reservado", VENDIDO: "Vendido", ALQUILADO: "Alquilado" };
+  const STATUS_COLORS: Record<string, string> = { DISPONIBLE: "#22C55E", RESERVADO: "#F59E0B", VENDIDO: "#6366F1", ALQUILADO: "#1A7FA8" };
+  const propsByStatus = Object.entries(STATUS_LABELS).map(([key, label]) => ({
+    name: label,
+    value: properties.filter((p) => p.status === key).length,
+    fill: STATUS_COLORS[key],
+  })).filter((s) => s.value > 0);
+
   if (loading) return (
     <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
   );
@@ -89,17 +105,38 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold mb-4">Embudo de conversión</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={pipelineFunnel} layout="vertical">
+          <h2 className="text-sm font-semibold mb-1">Embudo de conversión</h2>
+          <p className="text-xs text-muted-foreground mb-4">% de conversión entre etapas</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={funnelWithConversion} layout="vertical">
               <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis type="category" dataKey="stage" tick={{ fontSize: 11 }} width={115} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <YAxis type="category" dataKey="stage" tick={{ fontSize: 10 }} width={115} />
+              <Tooltip
+                contentStyle={{ fontSize: 12 }}
+                formatter={(value, _, props) => {
+                  const rate = props.payload?.conversionRate;
+                  return [value, rate != null ? `${value} leads (${rate}% del anterior)` : `${value} leads`];
+                }}
+              />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                {pipelineFunnel.map((_, i) => <Cell key={i} fill={funnelColors[i % funnelColors.length]} />)}
+                {funnelWithConversion.map((_, i) => <Cell key={i} fill={funnelColors[i % funnelColors.length]} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          {/* Conversion arrows */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {funnelWithConversion.slice(1).map((item) =>
+              item.conversionRate != null ? (
+                <div key={item.stage} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px]">
+                  <ArrowRight className="h-2.5 w-2.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">{item.stage}:</span>
+                  <span className={`font-semibold ${item.conversionRate >= 50 ? "text-green-600" : item.conversionRate >= 25 ? "text-amber-600" : "text-red-500"}`}>
+                    {item.conversionRate}%
+                  </span>
+                </div>
+              ) : null
+            )}
+          </div>
         </div>
 
         <div className="rounded-lg border bg-card p-5 shadow-sm">
@@ -116,6 +153,47 @@ export default function AnalyticsPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Properties by status */}
+        {propsByStatus.length > 0 && (
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <h2 className="text-sm font-semibold mb-4">Propiedades por estado</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={propsByStatus}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={3}
+                >
+                  {propsByStatus.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value: number, name: string) => [`${value} propiedades`, name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
+              {propsByStatus.map((s) => {
+                const total = propsByStatus.reduce((acc, x) => acc + x.value, 0);
+                const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+                return (
+                  <div key={s.name} className="flex items-center gap-1.5 text-sm">
+                    <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.fill }} />
+                    <span className="text-muted-foreground">{s.name}</span>
+                    <span className="font-semibold">{s.value}</span>
+                    <span className="text-muted-foreground text-xs">({pct}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm">
@@ -138,7 +216,7 @@ export default function AnalyticsPage() {
                     <td className="px-5 py-3 font-medium">{p.title}</td>
                     <td className="px-5 py-3 text-muted-foreground">{p.neighborhood}</td>
                     <td className="px-5 py-3 font-semibold text-accent">{priceStr}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{Math.max(1, 8 - i)} consultas</td>
+                    <td className="px-5 py-3 text-muted-foreground">{(p as never as { _count?: { visits?: number } })._count?.visits ?? 0} visitas</td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${p.status === "DISPONIBLE" ? "bg-green-100 text-green-700" : p.status === "RESERVADO" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>{p.status}</span>
                     </td>

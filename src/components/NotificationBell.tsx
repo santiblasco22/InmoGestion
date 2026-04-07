@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Bell } from "lucide-react";
+import { Bell, AlarmClock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/useAppStore";
@@ -27,8 +27,11 @@ export function NotificationBell() {
   const in24h = now + 24 * 60 * 60 * 1000;
   const last24h = now - 24 * 60 * 60 * 1000;
 
+  const today = new Date().toISOString().split("T")[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+
   const notifications = useMemo(() => {
-    const items: { id: string; type: "visit" | "lead"; title: string; body: string; time: Date }[] = [];
+    const items: { id: string; type: "visit" | "lead" | "reminder"; title: string; body: string; time: Date }[] = [];
 
     // Upcoming visits in next 24h
     visits
@@ -61,8 +64,27 @@ export function NotificationBell() {
         });
       });
 
+    // Reminders due today or tomorrow
+    leads.forEach((l) => {
+      (l.notes ?? []).forEach((note) => {
+        if (!note.content.startsWith("[RECORDATORIO]")) return;
+        try {
+          const data = JSON.parse(note.content.replace("[RECORDATORIO] ", ""));
+          if (data.dueAt === today || data.dueAt === tomorrow) {
+            items.push({
+              id: `rem-${note.id}`,
+              type: "reminder",
+              title: data.dueAt === today ? "Recordatorio hoy" : "Recordatorio mañana",
+              body: `${l.name} · ${data.title}`,
+              time: new Date(data.dueAt),
+            });
+          }
+        } catch {}
+      });
+    });
+
     return items.sort((a, b) => b.time.getTime() - a.time.getTime());
-  }, [visits, leads]);
+  }, [visits, leads, today, tomorrow]);
 
   const unread = notifications.filter((n) => !seenIds.has(n.id));
 
@@ -103,7 +125,7 @@ export function NotificationBell() {
             <div className="divide-y">
               {notifications.map((n) => (
                 <div key={n.id} className={`px-4 py-3 flex gap-3 ${seenIds.has(n.id) ? "" : "bg-accent/5"}`}>
-                  <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${n.type === "visit" ? "bg-accent" : "bg-green-500"}`} />
+                  <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${n.type === "visit" ? "bg-accent" : n.type === "reminder" ? "bg-amber-500" : "bg-green-500"}`} />
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-foreground">{n.title}</p>
                     <p className="text-xs text-muted-foreground truncate">{n.body}</p>

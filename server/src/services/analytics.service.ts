@@ -110,6 +110,104 @@ export async function getVisitsPerProperty(agentId: string) {
 }
 
 /**
+ * Returns a unified activity feed across all of the agent's leads.
+ * Includes stage changes, visit schedules, new leads, and price changes.
+ */
+export async function getActivityFeed(agentId: string, limit = 60) {
+  const [activityNotes, recentLeads, recentVisits] = await Promise.all([
+    prisma.note.findMany({
+      where: {
+        authorId: agentId,
+        OR: [
+          { content: { startsWith: "[ACTIVIDAD]" } },
+          { content: { startsWith: "[PRECIO]" } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        lead: { select: { id: true, name: true, stage: true } },
+        property: { select: { id: true, title: true } },
+      },
+    }),
+    prisma.lead.findMany({
+      where: { agentId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, name: true, source: true, stage: true, createdAt: true },
+    }),
+    prisma.visit.findMany({
+      where: { agentId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        lead: { select: { id: true, name: true } },
+        property: { select: { id: true, title: true } },
+      },
+    }),
+  ]);
+
+  const items: {
+    id: string;
+    type: "stage" | "visit_scheduled" | "new_lead" | "price_change";
+    content: string;
+    leadId: string | null;
+    leadName: string | null;
+    propertyId: string | null;
+    propertyTitle: string | null;
+    createdAt: Date;
+  }[] = [];
+
+  for (const note of activityNotes) {
+    const isPrice = note.content.startsWith("[PRECIO]");
+    const content = note.content.replace(/^\[(ACTIVIDAD|PRECIO)\] /, "");
+    items.push({
+      id: note.id,
+      type: isPrice ? "price_change" : content.toLowerCase().includes("visita") ? "visit_scheduled" : "stage",
+      content,
+      leadId: note.leadId ?? null,
+      leadName: note.lead?.name ?? null,
+      propertyId: note.propertyId ?? null,
+      propertyTitle: note.property?.title ?? null,
+      createdAt: note.createdAt,
+    });
+  }
+
+  for (const lead of recentLeads) {
+    const SOURCE_LABELS: Record<string, string> = {
+      WHATSAPP: "WhatsApp", WEB: "Web", REFERIDO: "Referido", PORTAL: "Portal", OTRO: "Otro",
+    };
+    items.push({
+      id: `lead-${lead.id}`,
+      type: "new_lead",
+      content: `Nuevo lead de ${SOURCE_LABELS[lead.source] ?? lead.source}`,
+      leadId: lead.id,
+      leadName: lead.name,
+      propertyId: null,
+      propertyTitle: null,
+      createdAt: lead.createdAt,
+    });
+  }
+
+  for (const visit of recentVisits) {
+    const dt = new Date(visit.scheduledAt);
+    const dateStr = dt.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+    items.push({
+      id: `visit-sched-${visit.id}`,
+      type: "visit_scheduled",
+      content: `Visita agendada para el ${dateStr} — ${visit.property?.title ?? "Propiedad"}`,
+      leadId: visit.leadId,
+      leadName: visit.lead?.name ?? null,
+      propertyId: visit.propertyId,
+      propertyTitle: visit.property?.title ?? null,
+      createdAt: visit.createdAt,
+    });
+  }
+
+  return items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+}
+
+/**
  * Returns lead counts at each pipeline stage for the funnel chart.
  */
 export async function getPipelineFunnel(agentId: string) {

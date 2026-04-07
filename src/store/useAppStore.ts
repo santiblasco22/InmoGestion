@@ -13,7 +13,8 @@ import {
   ApiVisit,
   ApiAnalyticsSummary,
 } from "@/lib/api";
-import { toast } from "sonner";
+
+type LeadInterestedProperty = NonNullable<ApiLead["interestedProperties"]>[number];
 
 // ─── Helpers to map API types to UI-friendly shapes ──────────────────────────
 
@@ -33,9 +34,19 @@ interface AppStore {
   propertiesLoading: boolean;
   visitsLoading: boolean;
 
+  // Properties pagination
+  propertiesTotal: number;
+  propertiesPage: number;
+  propertiesTotalPages: number;
+
+  // Leads pagination
+  leadsTotal: number;
+  leadsPage: number;
+
   // Fetch actions
-  fetchLeads: (params?: Record<string, string>) => Promise<void>;
-  fetchProperties: (params?: Record<string, string>) => Promise<void>;
+  fetchLeads: (params?: Record<string, string | number>) => Promise<void>;
+  loadMoreLeads: () => Promise<void>;
+  fetchProperties: (params?: Record<string, string | number>) => Promise<void>;
   fetchVisits: (params?: Record<string, string>) => Promise<void>;
   fetchAnalytics: () => Promise<void>;
 
@@ -44,6 +55,10 @@ interface AppStore {
   addLead: (data: Partial<ApiLead>) => Promise<void>;
   deleteLead: (leadId: string) => Promise<void>;
   addNote: (leadId: string, content: string) => Promise<void>;
+  updateNote: (leadId: string, noteId: string, content: string) => Promise<void>;
+  deleteNote: (leadId: string, noteId: string) => Promise<void>;
+  addLeadProperty: (leadId: string, propertyId: string) => Promise<void>;
+  removeLeadProperty: (leadId: string, propertyId: string) => Promise<void>;
 
   // Property mutations
   addProperty: (data: Partial<ApiProperty>, photos?: File[]) => Promise<void>;
@@ -56,6 +71,9 @@ interface AppStore {
   deleteVisit: (visitId: string) => Promise<void>;
 }
 
+const LEADS_PER_PAGE = 100;
+const PROPS_PER_PAGE = 12;
+
 export const useAppStore = create<AppStore>((set, get) => ({
   leads: [],
   properties: [],
@@ -64,14 +82,36 @@ export const useAppStore = create<AppStore>((set, get) => ({
   leadsLoading: false,
   propertiesLoading: false,
   visitsLoading: false,
+  propertiesTotal: 0,
+  propertiesPage: 1,
+  propertiesTotalPages: 1,
+  leadsTotal: 0,
+  leadsPage: 1,
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
 
   fetchLeads: async (params) => {
     set({ leadsLoading: true });
     try {
-      const res = await leadsApi.list(params);
-      set({ leads: res.data });
+      const res = await leadsApi.list({ limit: LEADS_PER_PAGE, page: 1, ...params });
+      set({ leads: res.data, leadsTotal: res.total, leadsPage: 1 });
+    } finally {
+      set({ leadsLoading: false });
+    }
+  },
+
+  loadMoreLeads: async () => {
+    const { leadsPage, leadsTotal, leads, leadsLoading } = get();
+    if (leadsLoading || leads.length >= leadsTotal) return;
+    const nextPage = leadsPage + 1;
+    set({ leadsLoading: true });
+    try {
+      const res = await leadsApi.list({ limit: LEADS_PER_PAGE, page: nextPage });
+      set((s) => ({
+        leads: [...s.leads, ...res.data],
+        leadsTotal: res.total,
+        leadsPage: nextPage,
+      }));
     } finally {
       set({ leadsLoading: false });
     }
@@ -80,8 +120,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   fetchProperties: async (params) => {
     set({ propertiesLoading: true });
     try {
-      const res = await propertiesApi.list(params);
-      set({ properties: res.data });
+      const res = await propertiesApi.list({ limit: PROPS_PER_PAGE, page: 1, ...params });
+      set({
+        properties: res.data,
+        propertiesTotal: res.total,
+        propertiesPage: res.page,
+        propertiesTotalPages: res.totalPages,
+      });
     } finally {
       set({ propertiesLoading: false });
     }
@@ -105,14 +150,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // ─── Lead mutations ─────────────────────────────────────────────────────────
 
   updateLeadStage: async (leadId, stage) => {
-    // Optimistic update
     set((s) => ({
       leads: s.leads.map((l) => (l.id === leadId ? { ...l, stage } : l)),
     }));
     try {
       await leadsApi.updateStage(leadId, stage);
     } catch (err) {
-      // Rollback on failure
       await get().fetchLeads();
       throw err;
     }
@@ -120,11 +163,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   addLead: async (data) => {
     const lead = await leadsApi.create(data);
-    set((s) => ({ leads: [lead, ...s.leads] }));
+    set((s) => ({ leads: [lead, ...s.leads], leadsTotal: s.leadsTotal + 1 }));
   },
 
   deleteLead: async (leadId) => {
-    set((s) => ({ leads: s.leads.filter((l) => l.id !== leadId) }));
+    set((s) => ({
+      leads: s.leads.filter((l) => l.id !== leadId),
+      leadsTotal: Math.max(0, s.leadsTotal - 1),
+    }));
     try {
       await leadsApi.delete(leadId);
     } catch (err) {
@@ -145,11 +191,54 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return note as never;
   },
 
+  updateNote: async (leadId, noteId, content) => {
+    await leadsApi.updateNote(leadId, noteId, content);
+    set((s) => ({
+      leads: s.leads.map((l) =>
+        l.id === leadId
+          ? { ...l, notes: (l.notes ?? []).map((n) => n.id === noteId ? { ...n, content } : n) }
+          : l
+      ),
+    }));
+  },
+
+  deleteNote: async (leadId, noteId) => {
+    await leadsApi.deleteNote(leadId, noteId);
+    set((s) => ({
+      leads: s.leads.map((l) =>
+        l.id === leadId
+          ? { ...l, notes: (l.notes ?? []).filter((n) => n.id !== noteId) }
+          : l
+      ),
+    }));
+  },
+
+  addLeadProperty: async (leadId, propertyId) => {
+    const updated = await leadsApi.addProperty(leadId, propertyId);
+    set((s) => ({
+      leads: s.leads.map((l) =>
+        l.id === leadId ? { ...l, interestedProperties: updated.interestedProperties } : l
+      ),
+    }));
+  },
+
+  removeLeadProperty: async (leadId, propertyId) => {
+    const updated = await leadsApi.removeProperty(leadId, propertyId);
+    set((s) => ({
+      leads: s.leads.map((l) =>
+        l.id === leadId ? { ...l, interestedProperties: updated.interestedProperties } : l
+      ),
+    }));
+  },
+
   // ─── Property mutations ──────────────────────────────────────────────────────
 
   addProperty: async (data, photos) => {
     const property = await propertiesApi.create(data, photos);
-    set((s) => ({ properties: [property, ...s.properties] }));
+    set((s) => ({
+      properties: [property, ...s.properties],
+      propertiesTotal: s.propertiesTotal + 1,
+    }));
   },
 
   updateProperty: async (propertyId, data) => {
@@ -160,7 +249,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   deleteProperty: async (propertyId) => {
-    set((s) => ({ properties: s.properties.filter((p) => p.id !== propertyId) }));
+    set((s) => ({
+      properties: s.properties.filter((p) => p.id !== propertyId),
+      propertiesTotal: Math.max(0, s.propertiesTotal - 1),
+    }));
     try {
       await propertiesApi.delete(propertyId);
     } catch (err) {
@@ -253,7 +345,6 @@ export function toUILead(l: ApiLead) {
     lastContact: l.updatedAt.split("T")[0],
     lastActivity: l.notes?.[0]?.content ?? "—",
     notes: (l.notes ?? []).map((n) => ({ date: n.createdAt.split("T")[0], text: n.content })),
-    // Keep raw API lead for mutations
     _raw: l,
   };
 }

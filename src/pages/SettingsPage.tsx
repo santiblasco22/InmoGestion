@@ -152,11 +152,51 @@ function ProfileSection() {
 
 // ─── Password section ─────────────────────────────────────────────────────────
 
+type PasswordForm = { current: string; next: string; confirm: string };
+type ShowState = { current: boolean; next: boolean; confirm: boolean };
+
+function PasswordField({
+  id, label, field, form, show, onToggle, onChange, hint,
+}: {
+  id: string;
+  label: string;
+  field: keyof PasswordForm;
+  form: PasswordForm;
+  show: ShowState;
+  onToggle: (f: keyof ShowState) => void;
+  onChange: (f: keyof PasswordForm, v: string) => void;
+  hint?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative mt-1">
+        <Input
+          id={id}
+          type={show[field] ? "text" : "password"}
+          value={form[field]}
+          onChange={(e) => onChange(field, e.target.value)}
+          className="pr-10"
+          placeholder="••••••••"
+        />
+        <button
+          type="button"
+          onClick={() => onToggle(field)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          {show[field] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      {hint}
+    </div>
+  );
+}
+
 function PasswordSection() {
   const { logout } = useAuthStore();
   const [saving, setSaving] = useState(false);
-  const [show, setShow] = useState({ current: false, next: false, confirm: false });
-  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [show, setShow] = useState<ShowState>({ current: false, next: false, confirm: false });
+  const [form, setForm] = useState<PasswordForm>({ current: "", next: "", confirm: "" });
 
   const nextOk = form.next.length >= 8;
   const match = form.next === form.confirm && form.confirm.length > 0;
@@ -168,7 +208,6 @@ function PasswordSection() {
       await authApi.changePassword(form.current, form.next);
       toast.success("Contraseña actualizada. Volvé a ingresar.");
       setForm({ current: "", next: "", confirm: "" });
-      // Tokens were revoked server-side; log out after a moment
       setTimeout(() => logout(), 1500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "No se pudo actualizar la contraseña";
@@ -178,43 +217,16 @@ function PasswordSection() {
     }
   };
 
-  const toggle = (f: keyof typeof show) => setShow((s) => ({ ...s, [f]: !s[f] }));
-
-  const PasswordInput = ({
-    id, label, field, hint,
-  }: { id: string; label: string; field: keyof typeof form; hint?: React.ReactNode }) => (
-    <div>
-      <Label htmlFor={id}>{label}</Label>
-      <div className="relative mt-1">
-        <Input
-          id={id}
-          type={show[field as keyof typeof show] ? "text" : "password"}
-          value={form[field]}
-          onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
-          className="pr-10"
-          placeholder="••••••••"
-        />
-        <button
-          type="button"
-          onClick={() => toggle(field as keyof typeof show)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-        >
-          {show[field as keyof typeof show] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-      {hint}
-    </div>
-  );
+  const toggle = (f: keyof ShowState) => setShow((s) => ({ ...s, [f]: !s[f] }));
+  const set = (f: keyof PasswordForm, v: string) => setForm((s) => ({ ...s, [f]: v }));
 
   return (
     <Section title="Seguridad" description="Cambiá tu contraseña de acceso" icon={Shield}>
       <div className="space-y-4">
-        <PasswordInput id="current" label="Contraseña actual" field="current" />
+        <PasswordField id="current" label="Contraseña actual" field="current" form={form} show={show} onToggle={toggle} onChange={set} />
         <Separator />
-        <PasswordInput
-          id="next"
-          label="Nueva contraseña"
-          field="next"
+        <PasswordField
+          id="next" label="Nueva contraseña" field="next" form={form} show={show} onToggle={toggle} onChange={set}
           hint={
             form.next.length > 0 && (
               <p className={`text-[11px] mt-1 flex items-center gap-1 ${nextOk ? "text-green-600" : "text-amber-600"}`}>
@@ -224,10 +236,8 @@ function PasswordSection() {
             )
           }
         />
-        <PasswordInput
-          id="confirm"
-          label="Confirmar nueva contraseña"
-          field="confirm"
+        <PasswordField
+          id="confirm" label="Confirmar nueva contraseña" field="confirm" form={form} show={show} onToggle={toggle} onChange={set}
           hint={
             form.confirm.length > 0 && (
               <p className={`text-[11px] mt-1 flex items-center gap-1 ${match ? "text-green-600" : "text-red-600"}`}>

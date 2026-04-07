@@ -27,3 +27,10 @@ export const pipelineFunnel = asyncHandler(async (req: Request, res: Response) =
   const data = await analyticsService.getPipelineFunnel(req.user.id);
   res.json(data);
 });
+
+/** GET /api/analytics/activity */
+export const activityFeed = asyncHandler(async (req: Request, res: Response) => {
+  const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(100).default(60) }).parse(req.query);
+  const data = await analyticsService.getActivityFeed(req.user.id, limit);
+  res.json(data);
+});

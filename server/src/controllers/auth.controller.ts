@@ -3,9 +3,14 @@ import { z } from "zod";
 import * as authService from "../services/auth.service";
 import { asyncHandler } from "../middleware/errorHandler";
 
+const PASSWORD_SCHEMA = z.string()
+  .min(8, "Mínimo 8 caracteres")
+  .regex(/[A-Z]/, "Debe contener al menos una mayúscula")
+  .regex(/[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]/, "Debe contener al menos un carácter especial");
+
 const registerSchema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  password: PASSWORD_SCHEMA,
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   phone: z.string().optional(),
 });
@@ -60,7 +65,7 @@ const updateProfileSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8, "La nueva contraseña debe tener al menos 8 caracteres"),
+  newPassword: PASSWORD_SCHEMA,
 });
 
 /** PUT /api/auth/profile */
@@ -83,7 +88,14 @@ const forgotPasswordSchema = z.object({
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  newPassword: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  newPassword: PASSWORD_SCHEMA,
+});
+
+/** POST /api/auth/google */
+export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
+  const { credential } = z.object({ credential: z.string().min(1) }).parse(req.body);
+  const result = await authService.loginWithGoogle(credential);
+  res.json(result);
 });
 
 /** POST /api/auth/forgot-password */

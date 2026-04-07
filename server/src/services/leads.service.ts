@@ -193,6 +193,30 @@ export async function bulkImportLeads(
 }
 
 /**
+ * Connects a property to a lead's interested properties list.
+ */
+export async function addLeadProperty(leadId: string, agentId: string, propertyId: string) {
+  await assertLeadOwner(leadId, agentId);
+  return prisma.lead.update({
+    where: { id: leadId },
+    data: { interestedProperties: { connect: { id: propertyId } } },
+    include: { interestedProperties: { select: { id: true, title: true, status: true } } },
+  });
+}
+
+/**
+ * Disconnects a property from a lead's interested properties list.
+ */
+export async function removeLeadProperty(leadId: string, agentId: string, propertyId: string) {
+  await assertLeadOwner(leadId, agentId);
+  return prisma.lead.update({
+    where: { id: leadId },
+    data: { interestedProperties: { disconnect: { id: propertyId } } },
+    include: { interestedProperties: { select: { id: true, title: true, status: true } } },
+  });
+}
+
+/**
  * Permanently deletes a lead and its related notes.
  */
 export async function deleteLead(id: string, agentId: string) {
@@ -224,6 +248,24 @@ export async function getLeadNotes(leadId: string, agentId: string) {
     orderBy: { createdAt: "asc" },
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
+}
+
+/**
+ * Updates a note's content. Only the author can update.
+ */
+export async function updateNote(noteId: string, agentId: string, content: string) {
+  const note = await prisma.note.findFirst({ where: { id: noteId, authorId: agentId } });
+  if (!note) throw new AppError(404, "Nota no encontrada");
+  return prisma.note.update({ where: { id: noteId }, data: { content } });
+}
+
+/**
+ * Deletes a single note. Only the author can delete.
+ */
+export async function deleteNote(noteId: string, agentId: string) {
+  const note = await prisma.note.findFirst({ where: { id: noteId, authorId: agentId } });
+  if (!note) throw new AppError(404, "Nota no encontrada");
+  await prisma.note.delete({ where: { id: noteId } });
 }
 
 // ─── Helper ──────────────────────────────────────────────────────────────────

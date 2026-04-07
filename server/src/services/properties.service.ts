@@ -140,19 +140,44 @@ export async function createProperty(
 
 /**
  * Updates an existing property. Only the owning agent can update.
+ * Records a price-change note if the price changed.
  */
 export async function updateProperty(
   id: string,
   agentId: string,
-  input: Partial<CreatePropertyInput>
+  input: Partial<CreatePropertyInput> & { photos?: string[] }
 ) {
-  await assertPropertyOwner(id, agentId);
+  const existing = await assertPropertyOwner(id, agentId);
 
   const data: Prisma.PropertyUpdateInput = { ...input };
   if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
   if (input.area !== undefined) data.area = new Prisma.Decimal(input.area);
 
-  return prisma.property.update({ where: { id }, data });
+  const updated = await prisma.property.update({ where: { id }, data });
+
+  // Record price change as a property note
+  if (input.price !== undefined) {
+    const oldPrice = Number(existing.price);
+    const newPrice = input.price;
+    if (oldPrice !== newPrice) {
+      const fmt = (n: number) =>
+        existing.currency === "USD"
+          ? `USD ${(n / 1000).toFixed(0)}k`
+          : n >= 1_000_000
+          ? `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+          : `$${n.toLocaleString("es-AR")}`;
+      const direction = newPrice < oldPrice ? "↓ Bajó" : "↑ Subió";
+      prisma.note.create({
+        data: {
+          content: `[PRECIO] ${direction} de ${fmt(oldPrice)} a ${fmt(newPrice)}`,
+          propertyId: id,
+          authorId: agentId,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  return updated;
 }
 
 /**

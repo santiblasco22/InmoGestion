@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Loader2, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
+import { Building2, Loader2, Eye, EyeOff, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
+import { GoogleSignInButton } from "@/components/GoogleButton";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -18,7 +19,10 @@ export default function RegisterPage() {
 
   const set = (f: string, v: string) => setForm((x) => ({ ...x, [f]: v }));
 
-  const passOk = form.password.length >= 8;
+  const req8 = form.password.length >= 8;
+  const reqUpper = /[A-Z]/.test(form.password);
+  const reqSpecial = /[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]/.test(form.password);
+  const passOk = req8 && reqUpper && reqSpecial;
   const passMatch = form.password === form.confirm && form.confirm.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,10 +132,18 @@ export default function RegisterPage() {
                 </button>
               </div>
               {form.password.length > 0 && (
-                <p className={`text-[11px] flex items-center gap-1 ${passOk ? "text-green-600" : "text-amber-600"}`}>
-                  {passOk ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                  {passOk ? "Contraseña válida" : "Mínimo 8 caracteres"}
-                </p>
+                <div className="space-y-0.5">
+                  {[
+                    { ok: req8, label: "Mínimo 8 caracteres" },
+                    { ok: reqUpper, label: "Al menos una mayúscula" },
+                    { ok: reqSpecial, label: "Al menos un carácter especial" },
+                  ].map(({ ok, label }) => (
+                    <p key={label} className={`text-[11px] flex items-center gap-1 ${ok ? "text-green-600" : "text-muted-foreground"}`}>
+                      {ok ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                      {label}
+                    </p>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -187,6 +199,17 @@ export default function RegisterPage() {
               )}
             </Button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">o registrarse con</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton label="Registrarse con Google" />
 
           <div className="pt-2 border-t text-center">
             <p className="text-sm text-muted-foreground">
