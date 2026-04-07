@@ -7,6 +7,8 @@ import path from "path";
 import apiRoutes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { prisma } from "./lib/prisma";
+import { scheduleReminderCron } from "./lib/queue";
+import "./workers/reminders.worker";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -68,6 +70,14 @@ async function bootstrap() {
   // Verify DB connection on startup
   await prisma.$connect();
   console.log("✓ Database connected");
+
+  // Start visit reminder cron (runs every hour via BullMQ)
+  try {
+    await scheduleReminderCron();
+    console.log("✓ Visit reminder cron scheduled");
+  } catch (err) {
+    console.warn("⚠ Could not schedule reminder cron (Redis may be unavailable):", (err as Error).message);
+  }
 
   app.listen(PORT, () => {
     console.log(`✓ Server running on http://localhost:${PORT}`);

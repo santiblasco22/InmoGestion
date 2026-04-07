@@ -39,3 +39,28 @@ export async function enqueuePortalSync(data: PortalSyncJobData): Promise<string
   });
   return job.id ?? "";
 }
+
+// ─── Visit Reminders Queue ────────────────────────────────────────────────────
+
+export const remindersQueue = new Queue("visit-reminders", {
+  connection: redisConnection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 10 },
+    removeOnFail: { count: 50 },
+  },
+});
+
+/**
+ * Schedules the hourly reminder check cron job.
+ * Safe to call multiple times — BullMQ deduplicates by jobId.
+ */
+export async function scheduleReminderCron(): Promise<void> {
+  await remindersQueue.add(
+    "check-reminders",
+    {},
+    {
+      repeat: { pattern: "0 * * * *" }, // every hour
+      jobId: "reminder-cron",
+    }
+  );
+}

@@ -6,14 +6,17 @@ import {
 import { useAppStore, toUILead } from "@/store/useAppStore";
 import { ApiLead } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FirmaDigital } from "@/components/FirmaDigital";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type Stage = ApiLead["stage"];
 
@@ -89,19 +92,59 @@ function KanbanColumn({ stage, leads, onLeadClick, activeId }: {
   );
 }
 
+// ─── WhatsApp message templates ───────────────────────────────────────────────
+
+const WA_TEMPLATES: Record<Stage, { label: string; message: (name: string, property?: string) => string }[]> = {
+  NUEVO: [
+    { label: "Saludo inicial", message: (n) => `Hola ${n}, te contacto desde InmoGestión. Vi que consultaste por una de nuestras propiedades. ¿Tenés unos minutos para hablar?` },
+    { label: "Presentación", message: (n, p) => `Hola ${n}! Soy tu agente en InmoGestión. Quería presentarme y contarte sobre ${p ?? "la propiedad"} que te interesó. ¿Cuándo sería buen momento para charlar?` },
+  ],
+  CONTACTADO: [
+    { label: "Seguimiento", message: (n) => `Hola ${n}, ¿cómo estás? Quería saber si pudiste ver la información que te compartí. ¿Tenés alguna pregunta?` },
+    { label: "Propuesta de visita", message: (n, p) => `Hola ${n}! ¿Qué te pareció ${p ?? "la propiedad"}? Me gustaría coordinar una visita para que la conozcas en persona. ¿Qué días te quedan bien esta semana?` },
+  ],
+  VISITA_AGENDADA: [
+    { label: "Confirmación 24hs antes", message: (n, p) => `Hola ${n}, te recuerdo que mañana tenemos la visita a ${p ?? "la propiedad"}. ¿Confirmás que podés venir? Cualquier cambio avisame con anticipación.` },
+    { label: "El día de la visita", message: (n) => `Hola ${n}! Hoy es el día de la visita. ¿Estás en camino? Cualquier consulta avisame.` },
+  ],
+  OFERTA_REALIZADA: [
+    { label: "Seguimiento de oferta", message: (n) => `Hola ${n}, ¿cómo andás? Quería saber si pudiste revisar la oferta que presentamos. ¿Hay algo que te genere dudas?` },
+    { label: "Negociación", message: (n, p) => `Hola ${n}! Hablé con el propietario de ${p ?? "la propiedad"} y hay margen para negociar. ¿Podemos hablar hoy para avanzar?` },
+  ],
+  CERRADO_GANADO: [
+    { label: "Felicitación", message: (n, p) => `¡Felicitaciones ${n}! La operación sobre ${p ?? "la propiedad"} fue un éxito. Fue un placer acompañarte en este proceso. Cualquier cosa que necesites, acá estoy.` },
+    { label: "Referidos", message: (n) => `Hola ${n}, espero que estés disfrutando tu nueva propiedad. Si conocés alguien que esté buscando, no dudes en recomendarme. ¡Muchas gracias por confiar en mí!` },
+  ],
+  CERRADO_PERDIDO: [
+    { label: "Mantenerse en contacto", message: (n) => `Hola ${n}, entiendo que por ahora no pudimos avanzar. Si en algún momento retomás la búsqueda, con gusto te ayudo. ¡Éxitos!` },
+  ],
+};
+
 // ─── Lead detail panel ────────────────────────────────────────────────────────
 
 function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => void }) {
   const { leads, addNote, updateLeadStage, deleteLead, properties } = useAppStore();
+  const { user } = useAuthStore();
   const lead = leads.find((l) => l.id === leadId) ?? null;
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [firmaOpen, setFirmaOpen] = useState(false);
 
   if (!lead) return null;
 
   const ui = toUILead(lead);
-  const waLink = `https://wa.me/54${(lead.phone ?? "").replace(/\D/g, "").slice(-10)}?text=Hola%20${encodeURIComponent(lead.name)}%2C%20te%20contacto%20desde%20InmoGestión`;
+  const phone = (lead.phone ?? "").replace(/\D/g, "").slice(-10);
   const matchedProperty = properties.find((p) => lead.interestedProperties?.some((ip) => ip.id === p.id));
+  const waTemplates = WA_TEMPLATES[lead.stage] ?? [];
+
+  const openWa = (message: string) => {
+    const url = `https://wa.me/54${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank", "noreferrer");
+  };
+
+  const copyText = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => toast.success("Mensaje copiado"));
+  };
 
   const handleNote = async () => {
     if (!noteText.trim()) return;
@@ -169,12 +212,62 @@ function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => 
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1"><Mail className="mr-1.5 h-3.5 w-3.5" />Email</Button>
-            <Button size="sm" className="flex-1 bg-green-600 text-white hover:bg-green-700" asChild>
-              <a href={waLink} target="_blank" rel="noreferrer"><MessageCircle className="mr-1.5 h-3.5 w-3.5" />WhatsApp</a>
+          <div className="flex gap-2 flex-wrap">
+            {lead.email && (
+              <Button size="sm" variant="outline" className="flex-1" asChild>
+                <a href={`mailto:${lead.email}`}><Mail className="mr-1.5 h-3.5 w-3.5" />Email</a>
+              </Button>
+            )}
+            {/* WhatsApp with template picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm" className="flex-1 bg-green-600 text-white hover:bg-green-700 gap-1">
+                  <MessageCircle className="h-3.5 w-3.5" />WhatsApp<ChevronDown className="h-3 w-3 opacity-70" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-2 space-y-1" align="start">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1">
+                  Plantillas para "{STAGE_LABELS[lead.stage]}"
+                </p>
+                {waTemplates.map((tpl) => {
+                  const msg = tpl.message(lead.name, matchedProperty?.title);
+                  return (
+                    <div key={tpl.label} className="rounded-md border bg-muted/30 p-2 space-y-1">
+                      <p className="text-xs font-medium">{tpl.label}</p>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2">{msg}</p>
+                      <div className="flex gap-1.5 pt-0.5">
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 flex-1" onClick={() => copyText(msg)}>
+                          <Copy className="h-2.5 w-2.5" />Copiar
+                        </Button>
+                        {phone && (
+                          <Button size="sm" className="h-6 text-[10px] gap-1 flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => openWa(msg)}>
+                            <MessageCircle className="h-2.5 w-2.5" />Abrir WA
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!phone && (
+                  <p className="text-[11px] text-muted-foreground px-2 py-1">Sin número de teléfono</p>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            {/* Firma digital */}
+            <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => setFirmaOpen(true)}>
+              <FileSignature className="h-3.5 w-3.5" />Firma digital
             </Button>
           </div>
+
+          <FirmaDigital
+            open={firmaOpen}
+            onClose={() => setFirmaOpen(false)}
+            leadName={lead.name}
+            propertyTitle={matchedProperty?.title ?? "Propiedad"}
+            propertyAddress={matchedProperty?.address}
+            agentName={user?.name ?? "Agente"}
+          />
 
           {/* Notes */}
           <div className="space-y-3">

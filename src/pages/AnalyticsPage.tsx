@@ -1,21 +1,11 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, CalendarDays, Handshake, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { Building2, Users, CalendarDays, Handshake, TrendingUp, Loader2 } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useAppStore } from "@/store/useAppStore";
 import { analyticsApi } from "@/lib/api";
 
 const funnelColors = ["#1A7FA8","#2196BD","#38B2D2","#F59E0B","#22C55E","#EF4444"];
-
-function TrendBadge({ value, suffix = "" }: { value: number; suffix?: string }) {
-  const positive = value >= 0;
-  const Icon = positive ? TrendingUp : TrendingDown;
-  return (
-    <span className={`flex items-center gap-1 text-xs font-medium ${positive ? "text-success" : "text-destructive"}`}>
-      <Icon className="h-3.5 w-3.5" />{positive ? "+" : ""}{value}{suffix} vs mes anterior
-    </span>
-  );
-}
 
 export default function AnalyticsPage() {
   const { leads, properties, analytics } = useAppStore();
@@ -69,15 +59,6 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {kpis.map((k) => <StatCard key={k.title} {...k} />)}
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {[{ label: "Publicaciones", v: 2 }, { label: "Leads", v: 15, suf: "%" }, { label: "Visitas", v: -3 }, { label: "Cierres", v: 1 }, { label: "Conversión", v: 3, suf: "pp" }].map((item) => (
-          <div key={item.label} className="col-span-1 rounded-lg border bg-card p-4 shadow-sm">
-            <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
-            <TrendBadge value={item.v} suffix={item.suf} />
-          </div>
-        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

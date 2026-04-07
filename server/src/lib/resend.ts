@@ -82,6 +82,52 @@ export async function sendVisitConfirmation(
 }
 
 /**
+ * Sends a 24-hour visit reminder to the agent.
+ */
+export async function sendVisitReminder(
+  agentEmail: string,
+  agentName: string,
+  leadName: string,
+  propertyTitle: string,
+  scheduledAt: Date,
+  visitType: string
+): Promise<void> {
+  const dateStr = scheduledAt.toLocaleDateString("es-AR", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+  const timeStr = scheduledAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+
+  await resend.emails.send({
+    from: FROM,
+    to: agentEmail,
+    subject: `⏰ Recordatorio: visita mañana — ${propertyTitle}`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #0F2942; padding: 24px; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">InmoGestión</h1>
+        </div>
+        <div style="background: white; padding: 32px; border: 1px solid #E2E8F0; border-radius: 0 0 8px 8px;">
+          <h2 style="color: #0F172A; font-size: 18px;">Recordatorio de visita, ${agentName}</h2>
+          <p style="color: #64748B; line-height: 1.6;">
+            Tenés una visita programada para mañana con <strong>${leadName}</strong>.
+          </p>
+          <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0; color: #0F172A;"><strong>🏠 Propiedad:</strong> ${propertyTitle}</p>
+            <p style="margin: 8px 0 0; color: #0F172A;"><strong>👤 Cliente:</strong> ${leadName}</p>
+            <p style="margin: 8px 0 0; color: #0F172A;"><strong>📅 Fecha:</strong> ${dateStr}</p>
+            <p style="margin: 8px 0 0; color: #0F172A;"><strong>🕐 Hora:</strong> ${timeStr}</p>
+            <p style="margin: 8px 0 0; color: #0F172A;"><strong>📍 Modalidad:</strong> ${visitType === "PRESENCIAL" ? "Presencial" : "Virtual"}</p>
+          </div>
+          <a href="${process.env.CLIENT_URL}/visits" style="display: inline-block; background: #1A7FA8; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500;">
+            Ver visitas →
+          </a>
+        </div>
+      </div>
+    `,
+  });
+}
+
+/**
  * Sends a lead notification to the agent when a new inquiry arrives via the portal.
  */
 export async function sendNewLeadNotification(
