@@ -200,6 +200,9 @@ export const leadsApi = {
     api.post<ApiNote>(`/leads/${id}/notes`, { content }),
 
   getNotes: (id: string) => api.get<ApiNote[]>(`/leads/${id}/notes`),
+
+  import: (rows: { name: string; email?: string; phone?: string; budget?: number; source?: string; stage?: string }[]) =>
+    api.post<{ created: number; skipped: number }>("/leads/import", rows),
 };
 
 // ─── Visits ───────────────────────────────────────────────────────────────────

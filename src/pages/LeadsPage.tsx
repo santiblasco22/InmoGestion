@@ -7,6 +7,7 @@ import { useAppStore, toUILead } from "@/store/useAppStore";
 import { ApiLead } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FirmaDigital } from "@/components/FirmaDigital";
+import { ImportLeadsDialog } from "@/components/ImportLeadsDialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X } from "lucide-react";
+import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X, Upload, GitCommitHorizontal, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -269,17 +270,32 @@ function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => 
             agentName={user?.name ?? "Agente"}
           />
 
-          {/* Notes */}
+          {/* Notes + Activity */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Historial de notas</h3>
-            <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-              {[...(lead.notes ?? [])].reverse().map((note, i) => (
-                <div key={i} className="relative pl-4 border-l-2 border-accent/40">
-                  <p className="text-[11px] text-muted-foreground">{note.createdAt?.split("T")[0] ?? note.id}</p>
-                  <p className="text-sm text-foreground">{note.content}</p>
-                </div>
-              ))}
-              {(!lead.notes?.length) && <p className="text-xs text-muted-foreground italic">Sin notas aún.</p>}
+            <h3 className="text-sm font-semibold text-foreground">Historial de actividad</h3>
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {[...(lead.notes ?? [])].reverse().map((note, i) => {
+                const isActivity = note.content.startsWith("[ACTIVIDAD]");
+                const content = isActivity ? note.content.replace("[ACTIVIDAD] ", "") : note.content;
+                const date = note.createdAt?.split("T")[0] ?? "";
+                const Icon = isActivity
+                  ? content.includes("Visita") ? CalendarDays : GitCommitHorizontal
+                  : null;
+                return (
+                  <div key={i} className={`relative flex gap-2.5 ${isActivity ? "items-start" : "pl-4 border-l-2 border-accent/40"}`}>
+                    {isActivity && Icon && (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted border shrink-0 mt-0.5">
+                        <Icon className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">{date}</p>
+                      <p className={`text-xs ${isActivity ? "text-muted-foreground italic" : "text-sm text-foreground"}`}>{content}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {(!lead.notes?.length) && <p className="text-xs text-muted-foreground italic">Sin actividad aún.</p>}
             </div>
             <div className="flex gap-2">
               <Input placeholder="Agregar una nota..." value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleNote()} className="text-sm" />
@@ -382,10 +398,11 @@ function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => voi
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
-  const { leads, updateLeadStage, leadsLoading } = useAppStore();
+  const { leads, updateLeadStage, leadsLoading, fetchLeads } = useAppStore();
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -443,6 +460,9 @@ export default function LeadsPage() {
               </button>
             )}
           </div>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />Importar CSV
+          </Button>
           <Button className="bg-primary text-primary-foreground" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />Nuevo Lead
           </Button>
@@ -471,6 +491,11 @@ export default function LeadsPage() {
 
       <LeadPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
       <CreateLeadDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ImportLeadsDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => fetchLeads({ limit: "200" })}
+      />
     </div>
   );
 }

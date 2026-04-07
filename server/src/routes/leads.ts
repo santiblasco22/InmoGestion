@@ -9,6 +9,7 @@ router.use(requireAuth);
 router.get("/", leadsController.list);
 router.get("/:id", leadsController.getOne);
 router.post("/", leadsController.create);
+router.post("/import", leadsController.importLeads);
 router.put("/:id", leadsController.update);
 router.patch("/:id/stage", leadsController.updateStage);
 router.delete("/:id", leadsController.remove);

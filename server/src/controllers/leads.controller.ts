@@ -82,3 +82,19 @@ export const getNotes = asyncHandler(async (req: Request, res: Response) => {
   const notes = await leadsService.getLeadNotes(req.params.id, req.user.id);
   res.json(notes);
 });
+
+const importRowSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  budget: z.coerce.number().positive().optional(),
+  source: z.string().optional(),
+  stage: z.string().optional(),
+});
+
+/** POST /api/leads/import */
+export const importLeads = asyncHandler(async (req: Request, res: Response) => {
+  const rows = z.array(importRowSchema).max(500, "Máximo 500 filas por importación").parse(req.body);
+  const result = await leadsService.bulkImportLeads(req.user.id, rows);
+  res.status(201).json(result);
+});

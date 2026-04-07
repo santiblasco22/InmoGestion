@@ -6,6 +6,7 @@ import visitsRoutes from "./visits";
 import analyticsRoutes from "./analytics";
 import portalsRoutes from "./portals";
 import adminRoutes from "./admin";
+import publicRoutes from "./public";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/visits", visitsRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/portals", portalsRoutes);
 router.use("/admin", adminRoutes);
+router.use("/public", publicRoutes);
 
 export default router;

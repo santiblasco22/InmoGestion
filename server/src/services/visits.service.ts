@@ -109,6 +109,17 @@ export async function createVisit(agentId: string, input: CreateVisitInput) {
     ).catch(() => {});
   }
 
+  // Log activity on the lead
+  const dateStr = scheduledAt.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+  const timeStr = scheduledAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  prisma.note.create({
+    data: {
+      content: `[ACTIVIDAD] Visita ${input.type === "PRESENCIAL" ? "presencial" : "virtual"} agendada para el ${dateStr} a las ${timeStr} en "${visit.property.title}"`,
+      leadId: input.leadId,
+      authorId: agentId,
+    },
+  }).catch(() => {});
+
   return visit;
 }
 

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutGrid, List, BedDouble, Bath, Maximize2, Search, MapPin, Pencil, Trash2, X, ChevronLeft, ChevronRight, Loader2, ImagePlus, XCircle, FileText } from "lucide-react";
+import { Plus, LayoutGrid, List, BedDouble, Bath, Maximize2, Search, MapPin, Pencil, Trash2, X, ChevronLeft, ChevronRight, Loader2, ImagePlus, XCircle, FileText, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { generatePropertySheet } from "@/components/PropertySheet";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -72,9 +72,13 @@ function PropertyDetailModal({ property, onClose, onEdit }: { property: ApiPrope
           {property.amenities.length > 0 && (
             <div><p className="text-sm font-semibold mb-2">Amenidades</p><div className="flex flex-wrap gap-2">{property.amenities.map((a) => <Badge key={a} variant="secondary" className="text-xs">{a}</Badge>)}</div></div>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" className="flex-1" onClick={() => { onClose(); onEdit(property); }}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
-            <Button variant="outline" className="flex-1" onClick={() => generatePropertySheet(property, user?.name ?? "Agente")}><FileText className="mr-2 h-4 w-4" />Generar ficha PDF</Button>
+            <Button variant="outline" className="flex-1" onClick={() => generatePropertySheet(property, user?.name ?? "Agente")}><FileText className="mr-2 h-4 w-4" />Ficha PDF</Button>
+            <Button variant="outline" className="w-full gap-2" onClick={() => {
+              const url = `${window.location.origin}/p/${property.id}`;
+              navigator.clipboard.writeText(url).then(() => toast.success("Link copiado al portapapeles"));
+            }}><Share2 className="h-4 w-4" />Compartir link público</Button>
           </div>
         </div>
       </DialogContent>

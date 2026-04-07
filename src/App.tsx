@@ -17,6 +17,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AdminPage from "./pages/AdminPage";
+import PublicPropertyPage from "./pages/PublicPropertyPage";
 import NotFound from "./pages/NotFound.tsx";
 import { useAuthStore } from "./store/useAuthStore";
 import { useAppStore } from "./store/useAppStore";
@@ -70,6 +71,7 @@ const App = () => {
         <BrowserRouter>
           <DataBootstrap />
           <Routes>
+            <Route path="/p/:id" element={<PublicPropertyPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />

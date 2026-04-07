@@ -127,11 +127,69 @@ export async function updateLead(
 }
 
 /**
- * Moves a lead to a new pipeline stage (optimistic, lightweight update).
+ * Moves a lead to a new pipeline stage and logs the change as an activity note.
  */
 export async function updateLeadStage(id: string, agentId: string, stage: LeadStage) {
-  await assertLeadOwner(id, agentId);
-  return prisma.lead.update({ where: { id }, data: { stage } });
+  const lead = await assertLeadOwner(id, agentId);
+
+  const STAGE_LABELS: Record<string, string> = {
+    NUEVO: "Nuevo", CONTACTADO: "Contactado", VISITA_AGENDADA: "Visita Agendada",
+    OFERTA_REALIZADA: "Oferta Realizada", CERRADO_GANADO: "Cerrado Ganado", CERRADO_PERDIDO: "Cerrado Perdido",
+  };
+
+  const [updated] = await Promise.all([
+    prisma.lead.update({ where: { id }, data: { stage } }),
+    prisma.note.create({
+      data: {
+        content: `[ACTIVIDAD] Etapa cambiada de "${STAGE_LABELS[lead.stage] ?? lead.stage}" a "${STAGE_LABELS[stage] ?? stage}"`,
+        leadId: id,
+        authorId: agentId,
+      },
+    }),
+  ]);
+
+  return updated;
+}
+
+/**
+ * Bulk-creates leads from an imported list (CSV/Excel).
+ * Returns counts of created and skipped rows.
+ */
+export async function bulkImportLeads(
+  agentId: string,
+  rows: { name: string; email?: string; phone?: string; budget?: number; source?: string; stage?: string }[]
+) {
+  const validSources = ["WHATSAPP", "WEB", "REFERIDO", "PORTAL", "OTRO"];
+  const validStages = ["NUEVO", "CONTACTADO", "VISITA_AGENDADA", "OFERTA_REALIZADA", "CERRADO_GANADO", "CERRADO_PERDIDO"];
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    if (!row.name?.trim()) { skipped++; continue; }
+    try {
+      await prisma.lead.create({
+        data: {
+          name: row.name.trim(),
+          email: row.email?.trim() || undefined,
+          phone: row.phone?.trim() || undefined,
+          budget: row.budget ? new Prisma.Decimal(row.budget) : undefined,
+          source: (validSources.includes((row.source ?? "").toUpperCase())
+            ? row.source!.toUpperCase()
+            : "OTRO") as LeadSource,
+          stage: (validStages.includes((row.stage ?? "").toUpperCase())
+            ? row.stage!.toUpperCase()
+            : "NUEVO") as LeadStage,
+          agentId,
+        },
+      });
+      created++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  return { created, skipped };
 }
 
 /**
