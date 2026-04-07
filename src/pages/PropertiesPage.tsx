@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutGrid, List, BedDouble, Bath, Maximize2, Search, MapPin, Pencil, Trash2, X, ChevronLeft, ChevronRight, Loader2, ImagePlus, XCircle } from "lucide-react";
+import { Plus, LayoutGrid, List, BedDouble, Bath, Maximize2, Search, MapPin, Pencil, Trash2, X, ChevronLeft, ChevronRight, Loader2, ImagePlus, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { generatePropertySheet } from "@/components/PropertySheet";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const AMENITY_OPTIONS = [
   "Patio","Terraza","Parrilla","Cochera","Pileta","Jardín","Balcón","SUM",
@@ -41,6 +43,7 @@ function PhotoGallery({ photos, title }: { photos: string[]; title: string }) {
 }
 
 function PropertyDetailModal({ property, onClose, onEdit }: { property: ApiProperty | null; onClose: () => void; onEdit: (p: ApiProperty) => void }) {
+  const { user } = useAuthStore();
   if (!property) return null;
   const ui = toUIProperty(property);
   return (
@@ -69,7 +72,10 @@ function PropertyDetailModal({ property, onClose, onEdit }: { property: ApiPrope
           {property.amenities.length > 0 && (
             <div><p className="text-sm font-semibold mb-2">Amenidades</p><div className="flex flex-wrap gap-2">{property.amenities.map((a) => <Badge key={a} variant="secondary" className="text-xs">{a}</Badge>)}</div></div>
           )}
-          <Button variant="outline" className="w-full" onClick={() => { onClose(); onEdit(property); }}><Pencil className="mr-2 h-4 w-4" />Editar propiedad</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => { onClose(); onEdit(property); }}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
+            <Button variant="outline" className="flex-1" onClick={() => generatePropertySheet(property, user?.name ?? "Agente")}><FileText className="mr-2 h-4 w-4" />Generar ficha PDF</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

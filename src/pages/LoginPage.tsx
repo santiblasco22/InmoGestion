@@ -10,8 +10,8 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isLoading, user } = useAuthStore();
-  const [email, setEmail] = useState("agente@inmogestion.com");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,16 +99,15 @@ export default function LoginPage() {
 
           <div className="pt-2 border-t space-y-3">
             <p className="text-sm text-muted-foreground text-center">
+              <Link to="/forgot-password" className="hover:text-foreground hover:underline">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </p>
+            <p className="text-sm text-muted-foreground text-center">
               ¿No tenés cuenta?{" "}
               <Link to="/register" className="font-medium text-primary hover:underline">
                 Registrate gratis
               </Link>
-            </p>
-            <p className="text-xs text-muted-foreground text-center">
-              Demo:{" "}
-              <span className="font-mono text-foreground">agente@inmogestion.com</span>{" "}
-              /{" "}
-              <span className="font-mono text-foreground">demo1234</span>
             </p>
           </div>
         </div>

@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown } from "lucide-react";
+import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -386,10 +386,22 @@ export default function LeadsPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const getLeadsByStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
+  const filteredLeads = search.trim()
+    ? leads.filter((l) => {
+        const q = search.toLowerCase();
+        return (
+          l.name.toLowerCase().includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q) ||
+          (l.phone ?? "").includes(q)
+        );
+      })
+    : leads;
+
+  const getLeadsByStage = (stage: Stage) => filteredLeads.filter((l) => l.stage === stage);
 
   const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
 
@@ -411,14 +423,30 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-5 h-full flex flex-col">
-      <div className="flex items-center justify-between shrink-0">
+      <div className="flex items-center justify-between shrink-0 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Leads (CRM)</h1>
           <p className="text-sm text-muted-foreground">Pipeline de ventas · {leads.length} leads totales</p>
         </div>
-        <Button className="bg-primary text-primary-foreground" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />Nuevo Lead
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar lead..."
+              className="pl-9 w-48"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <Button className="bg-primary text-primary-foreground" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />Nuevo Lead
+          </Button>
+        </div>
       </div>
 
       {leadsLoading ? (

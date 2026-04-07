@@ -1,8 +1,13 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { prisma } from "../lib/prisma";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { AppError } from "../middleware/errorHandler";
-import { sendWelcomeEmail } from "../lib/resend";
+import { sendWelcomeEmail, sendPasswordResetEmail } from "../lib/resend";
+import { redisConnection } from "../lib/queue";
+
+const RESET_TOKEN_TTL = 60 * 60; // 1 hour in seconds
+const RESET_KEY = (token: string) => `pwd-reset:${token}`;
 
 const SALT_ROUNDS = 12;
 
@@ -132,6 +137,37 @@ export async function changePassword(
 
   // Revoke all refresh tokens (force re-login everywhere)
   await prisma.refreshToken.deleteMany({ where: { userId } });
+}
+
+/**
+ * Generates a reset token and emails it. Always returns success to avoid
+ * leaking whether an email is registered.
+ */
+export async function forgotPassword(email: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return; // silent — don't leak existence
+
+  const token = crypto.randomBytes(32).toString("hex");
+  await redisConnection.set(RESET_KEY(token), user.id, "EX", RESET_TOKEN_TTL);
+
+  sendPasswordResetEmail(user.email, user.name, token).catch(() => {});
+}
+
+/**
+ * Validates a reset token and sets the new password.
+ */
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const userId = await redisConnection.get(RESET_KEY(token));
+  if (!userId) throw new AppError(400, "El enlace es inválido o expiró", "INVALID_RESET_TOKEN");
+
+  const hashed = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+
+  // Invalidate token and all active sessions
+  await Promise.all([
+    redisConnection.del(RESET_KEY(token)),
+    prisma.refreshToken.deleteMany({ where: { userId } }),
+  ]);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

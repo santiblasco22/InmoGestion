@@ -76,3 +76,27 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   await authService.changePassword(req.user.id, currentPassword, newPassword);
   res.json({ message: "Contraseña actualizada correctamente" });
 });
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Email inválido"),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+});
+
+/** POST /api/auth/forgot-password */
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = forgotPasswordSchema.parse(req.body);
+  await authService.forgotPassword(email);
+  // Always 200 — don't reveal if email exists
+  res.json({ message: "Si el email está registrado, recibirás un enlace en breve." });
+});
+
+/** POST /api/auth/reset-password */
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { token, newPassword } = resetPasswordSchema.parse(req.body);
+  await authService.resetPassword(token, newPassword);
+  res.json({ message: "Contraseña restablecida correctamente." });
+});

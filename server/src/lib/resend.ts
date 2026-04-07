@@ -82,6 +82,33 @@ export async function sendVisitConfirmation(
 }
 
 /**
+ * Sends a password reset email with a one-time link.
+ */
+export async function sendPasswordResetEmail(to: string, name: string, resetToken: string): Promise<void> {
+  const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Recuperar contraseña — InmoGestión",
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #0F2942; padding: 24px; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">InmoGestión</h1>
+        </div>
+        <div style="background: white; padding: 32px; border: 1px solid #E2E8F0; border-radius: 0 0 8px 8px;">
+          <h2 style="color: #0F172A; font-size: 18px;">Hola, ${name}</h2>
+          <p style="color: #64748B; line-height: 1.6;">Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
+          <a href="${resetUrl}" style="display: inline-block; background: #1A7FA8; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin: 20px 0; font-weight: 500;">
+            Restablecer contraseña →
+          </a>
+          <p style="color: #94A3B8; font-size: 13px;">Este enlace expira en 1 hora. Si no solicitaste esto, ignorá este email.</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+/**
  * Sends a 24-hour visit reminder to the agent.
  */
 export async function sendVisitReminder(

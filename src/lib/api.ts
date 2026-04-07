@@ -137,6 +137,10 @@ export const authApi = {
     api.put<{ user: ApiUser }>("/auth/profile", data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.put<{ message: string }>("/auth/password", { currentPassword, newPassword }),
+  forgotPassword: (email: string) =>
+    api.post<{ message: string }>("/auth/forgot-password", { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    api.post<{ message: string }>("/auth/reset-password", { token, newPassword }),
 };
 
 // ─── Properties ──────────────────────────────────────────────────────────────
