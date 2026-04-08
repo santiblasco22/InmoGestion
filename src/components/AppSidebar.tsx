@@ -4,7 +4,6 @@ import {
   Users,
   CalendarDays,
   BarChart3,
-  Globe,
   Settings,
   LogOut,
   ShieldCheck,
@@ -33,7 +32,6 @@ const navItems = [
   { title: "Calendario", url: "/calendario", icon: CalendarDays },
   { title: "Analíticas", url: "/analiticas", icon: BarChart3 },
   { title: "Actividad", url: "/actividad", icon: Activity },
-  { title: "Portal Cliente", url: "/portal", icon: Globe },
   { title: "Configuración", url: "/configuracion", icon: Settings },
 ];
 
