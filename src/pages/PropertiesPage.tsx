@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutGrid, List, BedDouble, Bath, Maximize2, Search, MapPin, Pencil, Trash2, X, ChevronLeft, ChevronRight, Loader2, ImagePlus, XCircle, FileText, Share2, TrendingDown, TrendingUp, Calculator, Map, RefreshCw, CheckCircle2, AlertCircle, Clock, ChevronDown, Check } from "lucide-react";
+import { Plus, LayoutGrid, List, BedDouble, Bath, Maximize2, Search, MapPin, Pencil, Trash2, X, ChevronLeft, ChevronRight, Loader2, ImagePlus, XCircle, FileText, Share2, TrendingDown, TrendingUp, Calculator, Map, RefreshCw, CheckCircle2, AlertCircle, Clock, ChevronDown, Check, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { generatePropertySheet } from "@/components/PropertySheet";
 import { MortgageCalculator } from "@/components/MortgageCalculator";
@@ -492,6 +492,26 @@ function QuickStatusBadge({ property }: { property: ApiProperty }) {
   );
 }
 
+// ─── CSV export ───────────────────────────────────────────────────────────────
+
+function exportPropertiesCSV(properties: ApiProperty[]) {
+  const rows = [
+    ["Título", "Dirección", "Barrio", "Ciudad", "Precio", "Moneda", "Tipo", "Estado", "Ambientes", "Baños", "Superficie", "Fecha creación"],
+    ...properties.map((p) => [
+      p.title, p.address, p.neighborhood, p.city,
+      p.price, p.currency, p.type, p.status,
+      p.rooms, p.bathrooms, p.area,
+      new Date(p.createdAt).toLocaleDateString("es-AR"),
+    ]),
+  ];
+  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `propiedades_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 export default function PropertiesPage() {
   const { properties, propertiesLoading, propertiesTotal, propertiesPage, propertiesTotalPages, fetchProperties } = useAppStore();
   const [view, setView] = useState<"grid" | "list" | "map">("grid");
@@ -531,7 +551,12 @@ export default function PropertiesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-semibold">Propiedades</h1><p className="text-sm text-muted-foreground">{propertiesTotal} propiedades en total</p></div>
-        <Button className="bg-primary text-primary-foreground" onClick={() => { setEditProperty(null); setDrawerOpen(true); }}><Plus className="mr-2 h-4 w-4" />Nueva Propiedad</Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => exportPropertiesCSV(properties)}>
+            <FileDown className="mr-2 h-4 w-4" />Exportar CSV
+          </Button>
+          <Button className="bg-primary text-primary-foreground" onClick={() => { setEditProperty(null); setDrawerOpen(true); }}><Plus className="mr-2 h-4 w-4" />Nueva Propiedad</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">

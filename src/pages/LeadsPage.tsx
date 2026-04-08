@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X, Upload, GitCommitHorizontal, CalendarDays, CheckSquare, Square, Bell, AlarmClock } from "lucide-react";
+import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, Copy, FileSignature, ChevronDown, Search, X, Upload, GitCommitHorizontal, CalendarDays, CheckSquare, Square, Bell, AlarmClock, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLocation } from "react-router-dom";
@@ -655,6 +655,30 @@ function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
+// ─── CSV export ───────────────────────────────────────────────────────────────
+
+function exportLeadsCSV(leads: ApiLead[]) {
+  const STAGE_MAP: Record<string, string> = {
+    NUEVO: "Nuevo", CONTACTADO: "Contactado", VISITA_AGENDADA: "Visita Agendada",
+    OFERTA_REALIZADA: "Oferta Realizada", CERRADO_GANADO: "Cerrado Ganado", CERRADO_PERDIDO: "Cerrado Perdido",
+  };
+  const rows = [
+    ["Nombre", "Email", "Teléfono", "Presupuesto", "Moneda", "Origen", "Etapa", "Fecha creación"],
+    ...leads.map((l) => [
+      l.name, l.email ?? "", l.phone ?? "",
+      l.budget ?? "", l.budgetCurrency,
+      l.source, STAGE_MAP[l.stage] ?? l.stage,
+      new Date(l.createdAt).toLocaleDateString("es-AR"),
+    ]),
+  ];
+  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `leads_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
@@ -731,6 +755,9 @@ export default function LeadsPage() {
               </button>
             )}
           </div>
+          <Button variant="outline" onClick={() => exportLeadsCSV(leads)}>
+            <FileDown className="mr-2 h-4 w-4" />Exportar CSV
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />Importar CSV
           </Button>

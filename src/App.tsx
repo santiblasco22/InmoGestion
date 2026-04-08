@@ -62,6 +62,10 @@ const App = () => {
 
   useEffect(() => {
     rehydrate().catch(() => {});
+    // Apply saved dark mode preference
+    if (localStorage.getItem("darkMode") === "true") {
+      document.documentElement.classList.add("dark");
+    }
   }, []);
 
   return (

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   User, Bell, Shield, Loader2,
   Phone, Mail, BadgeCheck, Eye, EyeOff, CheckCircle2,
-  AlertCircle, LogOut,
+  AlertCircle, LogOut, Moon,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { authApi } from "@/lib/api";
@@ -366,6 +366,31 @@ function AccountSection() {
   );
 }
 
+// ─── Appearance section ───────────────────────────────────────────────────────
+
+function AppearanceSection() {
+  const [dark, setDark] = useState(() => localStorage.getItem("darkMode") === "true");
+
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("darkMode", String(next));
+    document.documentElement.classList.toggle("dark", next);
+  };
+
+  return (
+    <Section title="Apariencia" description="Personalizá el aspecto de la interfaz" icon={Moon}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">Modo oscuro</p>
+          <p className="text-xs text-muted-foreground">Cambiá entre tema claro y oscuro</p>
+        </div>
+        <Switch checked={dark} onCheckedChange={toggleDark} />
+      </div>
+    </Section>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -377,6 +402,7 @@ export default function SettingsPage() {
       </div>
 
       <ProfileSection />
+      <AppearanceSection />
       <NotificationsSection />
       <PasswordSection />
       <AccountSection />
