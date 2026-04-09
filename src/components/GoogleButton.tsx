@@ -1,15 +1,11 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-interface Props {
-  label?: string;
-}
-
-export function GoogleSignInButton({ label }: Props) {
+export function GoogleSignInButton({ label }: { label?: string }) {
   const { loginWithGoogle } = useAuthStore();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -31,20 +27,23 @@ export function GoogleSignInButton({ label }: Props) {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-2">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center gap-2 h-10 w-full rounded-md border text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Conectando con Google...
       </div>
     );
   }
 
   return (
-    <div className="flex justify-center">
+    <div className="w-full flex justify-center [&>div]:w-full [&_iframe]:w-full">
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={() => toast.error("No se pudo iniciar sesión con Google")}
+        width="100%"
         text={label === "Registrarse con Google" ? "signup_with" : "signin_with"}
         shape="rectangular"
-        width="320"
+        logo_alignment="left"
+        locale="es"
       />
     </div>
   );

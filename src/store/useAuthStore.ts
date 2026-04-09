@@ -10,8 +10,8 @@ interface AuthStore {
   isLoading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { name: string; email: string; password: string; phone?: string }) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
+  register: (data: { name: string; email: string; password: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: ApiUser | null) => void;
   rehydrate: () => Promise<void>;
@@ -35,10 +35,10 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      register: async (data) => {
+      loginWithGoogle: async (credential) => {
         set({ isLoading: true });
         try {
-          const { tokens: t, user } = await authApi.register(data);
+          const { tokens: t, user } = await authApi.googleLogin(credential);
           tokens.set(t.accessToken, t.refreshToken);
           set({ user, isLoading: false });
         } catch (err) {
@@ -47,10 +47,10 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      loginWithGoogle: async (credential) => {
+      register: async (data) => {
         set({ isLoading: true });
         try {
-          const { tokens: t, user } = await authApi.googleLogin(credential);
+          const { tokens: t, user } = await authApi.register(data);
           tokens.set(t.accessToken, t.refreshToken);
           set({ user, isLoading: false });
         } catch (err) {
