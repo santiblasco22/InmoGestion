@@ -1,10 +1,18 @@
 import { Queue, Worker, QueueEvents } from "bullmq";
 import IORedis from "ioredis";
 
-/** Shared Redis connection for BullMQ */
-export const redisConnection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
+
+/** Shared Redis connection for BullMQ — lazy, won't crash if Redis is unavailable */
+export const redisConnection = new IORedis(REDIS_URL, {
   maxRetriesPerRequest: null, // Required by BullMQ
   enableReadyCheck: false,
+  lazyConnect: true,          // Don't connect until first command
+  retryStrategy: () => null,  // Don't retry — fail silently
+});
+
+redisConnection.on("error", () => {
+  // Suppress connection errors — Redis is optional
 });
 
 // ─── Portal Sync Queue ────────────────────────────────────────────────────────
@@ -31,7 +39,6 @@ export const portalSyncEvents = new QueueEvents("portal-sync", {
 
 /**
  * Enqueues a portal sync job for the given property.
- * @param data - Job payload with propertyId and portals to sync
  */
 export async function enqueuePortalSync(data: PortalSyncJobData): Promise<string> {
   const job = await portalSyncQueue.add("sync", data, {
@@ -52,14 +59,13 @@ export const remindersQueue = new Queue("visit-reminders", {
 
 /**
  * Schedules the hourly reminder check cron job.
- * Safe to call multiple times — BullMQ deduplicates by jobId.
  */
 export async function scheduleReminderCron(): Promise<void> {
   await remindersQueue.add(
     "check-reminders",
     {},
     {
-      repeat: { pattern: "0 * * * *" }, // every hour
+      repeat: { pattern: "0 * * * *" },
       jobId: "reminder-cron",
     }
   );
