@@ -77,18 +77,18 @@ async function request<T>(
       : undefined,
   });
 
-  // Token expired → refresh once and retry
-  if (res.status === 401 && retry) {
+  if (res.status === 204) return undefined as T;
+
+  const json = await res.json().catch(() => null);
+
+  // Token expired → try refresh once, then retry original request
+  if (res.status === 401 && retry && !json?.error?.message) {
     const refreshed = await tryRefresh();
     if (refreshed) return request<T>(method, path, body, isFormData, false);
-    // Refresh failed — clear tokens and throw so callers can redirect via React Router
     tokens.clear();
     throw new ApiError(401, "Sesión expirada", "SESSION_EXPIRED");
   }
 
-  if (res.status === 204) return undefined as T;
-
-  const json = await res.json();
   if (!res.ok) {
     const msg = json?.error?.message ?? `HTTP ${res.status}`;
     throw new ApiError(res.status, msg, json?.error?.code);
