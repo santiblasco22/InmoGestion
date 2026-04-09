@@ -14,23 +14,25 @@ const PORT = parseInt(process.env.PORT ?? "3001", 10);
 // ─── Security & Parsing ────────────────────────────────────────────────────────
 app.use(helmet());
 const allowedOrigins = [
-  process.env.CLIENT_URL ?? "http://localhost:5173",
+  "https://inmo-gestion.vercel.app",
+  process.env.CLIENT_URL,
   "http://localhost:5173",
   "http://localhost:8083",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:8083",
-];
+].filter(Boolean) as string[];
 app.use(
   cors({
     origin: (origin, callback) => {
       // allow requests with no origin (mobile apps, curl, etc.)
       if (!origin) return callback(null, true);
-      // allow any localhost port in development
-      if (process.env.NODE_ENV !== "production" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      // allow any localhost in development
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS blocked: ${origin}`));
+      // return false instead of throwing — avoids 500 on preflight
+      callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
