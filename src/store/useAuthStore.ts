@@ -11,6 +11,7 @@ interface AuthStore {
 
   login: (email: string, password: string) => Promise<void>;
   register: (data: { name: string; email: string; password: string; phone?: string }) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: ApiUser | null) => void;
   rehydrate: () => Promise<void>;
@@ -38,6 +39,18 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           const { tokens: t, user } = await authApi.register(data);
+          tokens.set(t.accessToken, t.refreshToken);
+          set({ user, isLoading: false });
+        } catch (err) {
+          set({ isLoading: false });
+          throw err;
+        }
+      },
+
+      loginWithGoogle: async (credential) => {
+        set({ isLoading: true });
+        try {
+          const { tokens: t, user } = await authApi.googleLogin(credential);
           tokens.set(t.accessToken, t.refreshToken);
           set({ user, isLoading: false });
         } catch (err) {
