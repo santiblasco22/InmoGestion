@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
-export const resend = new Resend(process.env.RESEND_API_KEY);
+// Si no hay API key configurada, usamos un placeholder — los emails no se envían pero el servidor no crashea
+export const resend = new Resend(process.env.RESEND_API_KEY ?? "re_placeholder");
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@inmogestion.com";
 
