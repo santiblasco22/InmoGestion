@@ -31,7 +31,8 @@ app.use(
         return callback(null, true);
       }
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      // return false instead of throwing — avoids 500 on preflight
+      // allow any vercel.app preview/production URL
+      if (/^https:\/\/[a-z0-9-]+(\.vercel\.app)$/.test(origin)) return callback(null, true);
       callback(null, false);
     },
     credentials: true,
