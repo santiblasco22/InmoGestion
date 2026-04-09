@@ -3,21 +3,29 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Instalar openssl (requerido por Prisma)
+RUN apk add --no-cache openssl
+
 # Instalar dependencias
 COPY package*.json ./
 RUN npm ci
 
-# Copiar código y compilar TypeScript
+# Copiar código fuente
 COPY . .
-RUN npm run build
 
-# Generar Prisma Client
+# Generar Prisma Client ANTES de compilar (genera los tipos TypeScript)
 RUN npx prisma generate
+
+# Compilar TypeScript
+RUN npm run build
 
 # ── Etapa 2: Producción ────────────────────────────────────────────────────────
 FROM node:20-alpine
 
 WORKDIR /app
+
+# Instalar openssl (requerido por Prisma en runtime)
+RUN apk add --no-cache openssl
 
 # Solo dependencias de producción
 COPY package*.json ./
