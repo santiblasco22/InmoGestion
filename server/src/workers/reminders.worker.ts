@@ -1,17 +1,16 @@
-import { Worker } from "bullmq";
-import { redisConnection, remindersQueue } from "../lib/queue";
+import { Worker, Queue } from "bullmq";
+import { getRedisConnection } from "../lib/queue";
 import { prisma } from "../lib/prisma";
 import { sendVisitReminder } from "../lib/resend";
 
 const REDIS_KEY_PREFIX = "reminder:sent:";
-const WINDOW_START_MS = 23 * 60 * 60 * 1000; // 23 hours
-const WINDOW_END_MS   = 25 * 60 * 60 * 1000; // 25 hours
+const WINDOW_START_MS = 23 * 60 * 60 * 1000;
+const WINDOW_END_MS   = 25 * 60 * 60 * 1000;
 
-/**
- * Worker that runs every hour and sends email reminders to agents
- * for visits scheduled ~24 hours from now.
- * Redis tracks which reminders have already been sent to prevent duplicates.
- */
+const connection = getRedisConnection();
+
+export const remindersQueue = new Queue("visit-reminders", { connection });
+
 export const remindersWorker = new Worker(
   "visit-reminders",
   async () => {
@@ -35,7 +34,7 @@ export const remindersWorker = new Worker(
 
     for (const visit of visits) {
       const redisKey = `${REDIS_KEY_PREFIX}${visit.id}`;
-      const alreadySent = await redisConnection.get(redisKey);
+      const alreadySent = await connection.get(redisKey);
       if (alreadySent) continue;
 
       try {
@@ -47,9 +46,7 @@ export const remindersWorker = new Worker(
           visit.scheduledAt,
           visit.type
         );
-
-        // Mark as sent; expire after 48h so Redis stays clean
-        await redisConnection.set(redisKey, "1", "EX", 48 * 60 * 60);
+        await connection.set(redisKey, "1", "EX", 48 * 60 * 60);
         sent++;
       } catch (err) {
         console.error(`[reminders] Failed to send reminder for visit ${visit.id}:`, err);
@@ -60,11 +57,9 @@ export const remindersWorker = new Worker(
       console.log(`[reminders] Checked ${visits.length} upcoming visits, sent ${sent} reminders`);
     }
   },
-  { connection: redisConnection, concurrency: 1 }
+  { connection, concurrency: 1 }
 );
 
 remindersWorker.on("failed", (job, err) => {
   console.error(`[reminders] Job ${job?.id} failed:`, err.message);
 });
-
-export { remindersQueue };
