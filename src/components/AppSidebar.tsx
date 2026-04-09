@@ -4,9 +4,9 @@ import {
   Users,
   CalendarDays,
   BarChart3,
-  Globe,
   Settings,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -30,7 +30,6 @@ const navItems = [
   { title: "Leads (CRM)", url: "/leads", icon: Users },
   { title: "Calendario", url: "/calendario", icon: CalendarDays },
   { title: "Analíticas", url: "/analiticas", icon: BarChart3 },
-  { title: "Portal Cliente", url: "/portal", icon: Globe },
   { title: "Configuración", url: "/configuracion", icon: Settings },
 ];
 
@@ -40,6 +39,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const isAdmin = user?.role === "ADMIN";
 
   const handleLogout = async () => {
     await logout();
@@ -80,6 +80,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin"
+                      className="hover:bg-sidebar-accent/60"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4 shrink-0" />
+                      {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

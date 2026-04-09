@@ -10,8 +10,8 @@ import PropertiesPage from "./pages/PropertiesPage";
 import LeadsPage from "./pages/LeadsPage";
 import CalendarPage from "./pages/CalendarPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
-import ClientPortalPage from "./pages/ClientPortalPage";
 import SettingsPage from "./pages/SettingsPage";
+import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import NotFound from "./pages/NotFound.tsx";
@@ -80,8 +80,8 @@ const App = () => {
                       <Route path="/leads" element={<LeadsPage />} />
                       <Route path="/calendario" element={<CalendarPage />} />
                       <Route path="/analiticas" element={<AnalyticsPage />} />
-                      <Route path="/portal" element={<ClientPortalPage />} />
                       <Route path="/configuracion" element={<SettingsPage />} />
+                      <Route path="/admin" element={<AdminPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppLayout>

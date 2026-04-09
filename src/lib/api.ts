@@ -345,6 +345,19 @@ export interface ApiPaginatedResponse<T> {
   totalPages: number;
 }
 
+// ─── Admin ───────────────────────────────────────────────────────────────────
+
+export interface ApiAgentStats {
+  id: string; email: string; name: string; role: string;
+  phone?: string | null; createdAt: string;
+  _count: { properties: number; leads: number; visits: number };
+}
+
+export const adminApi = {
+  agents: () => api.get<{ agents: ApiAgentStats[] }>("/admin/agents"),
+  deleteAgent: (agentId: string) => api.delete<void>(`/admin/agents/${agentId}`),
+};
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function toQuery(params?: Record<string, string | number | undefined>): string {
