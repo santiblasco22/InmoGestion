@@ -1,15 +1,17 @@
 import { Worker, Queue } from "bullmq";
-import { getRedisConnection } from "../lib/queue";
+import IORedis from "ioredis";
 import { prisma } from "../lib/prisma";
 import { sendVisitReminder } from "../lib/resend";
 
+const REDIS_URL = process.env.REDIS_URL!;
 const REDIS_KEY_PREFIX = "reminder:sent:";
 const WINDOW_START_MS = 23 * 60 * 60 * 1000;
 const WINDOW_END_MS   = 25 * 60 * 60 * 1000;
 
-const connection = getRedisConnection();
-
-export const remindersQueue = new Queue("visit-reminders", { connection });
+const connection = new IORedis(REDIS_URL, {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+});
 
 export const remindersWorker = new Worker(
   "visit-reminders",
@@ -54,7 +56,7 @@ export const remindersWorker = new Worker(
     }
 
     if (visits.length > 0 || sent > 0) {
-      console.log(`[reminders] Checked ${visits.length} upcoming visits, sent ${sent} reminders`);
+      console.log(`[reminders] Checked ${visits.length} visits, sent ${sent} reminders`);
     }
   },
   { connection, concurrency: 1 }

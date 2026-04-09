@@ -7,7 +7,13 @@
  */
 import "dotenv/config";
 import { Worker, Job } from "bullmq";
-import { redisConnection, PortalSyncJobData } from "../lib/queue";
+import IORedis from "ioredis";
+import { PortalSyncJobData } from "../lib/queue";
+
+const redisConnection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+});
 import { prisma } from "../lib/prisma";
 import { Portal } from "@prisma/client";
 
