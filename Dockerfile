@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Instalar dependencias primero (aprovecha cache de Docker)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copiar código fuente
 COPY . .
