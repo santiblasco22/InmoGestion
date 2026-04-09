@@ -57,6 +57,14 @@ const App = () => {
 
   useEffect(() => {
     rehydrate().catch(() => {});
+    // Apply saved theme preference; default is dark
+    const saved = localStorage.getItem("theme");
+    if (saved === "light") {
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    }
   }, []);
 
   return (

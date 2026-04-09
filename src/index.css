@@ -52,6 +52,52 @@
     --sidebar-ring: 196 73% 38%;
     --sidebar-muted: 210 20% 70%;
   }
+
+  .dark {
+    --background: 222 25% 9%;
+    --foreground: 210 20% 92%;
+
+    --card: 222 22% 12%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 222 22% 12%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 196 73% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --accent: 196 73% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --secondary: 222 20% 18%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 222 20% 16%;
+    --muted-foreground: 215 16% 55%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 65% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 88% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 222 20% 18%;
+    --input: 222 20% 18%;
+    --ring: 196 73% 42%;
+
+    --sidebar-background: 222 28% 7%;
+    --sidebar-foreground: 210 20% 88%;
+    --sidebar-primary: 196 73% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 22% 14%;
+    --sidebar-accent-foreground: 210 20% 88%;
+    --sidebar-border: 222 20% 14%;
+    --sidebar-ring: 196 73% 42%;
+    --sidebar-muted: 215 16% 50%;
+  }
 }
 
 @layer base {
@@ -68,10 +114,10 @@
   .badge-reserved { @apply bg-warning/15 text-warning; }
   .badge-sold { @apply bg-muted text-muted-foreground; }
   .badge-rented { @apply bg-accent/15 text-accent; }
-  .badge-new { @apply bg-purple-100 text-purple-700; }
-  .badge-contacted { @apply bg-blue-100 text-blue-700; }
-  .badge-visit { @apply bg-teal-100 text-teal-700; }
-  .badge-offer { @apply bg-amber-100 text-amber-700; }
-  .badge-won { @apply bg-green-100 text-green-700; }
-  .badge-lost { @apply bg-red-100 text-red-700; }
+  .badge-new { @apply bg-purple-500/15 text-purple-400; }
+  .badge-contacted { @apply bg-blue-500/15 text-blue-400; }
+  .badge-visit { @apply bg-teal-500/15 text-teal-400; }
+  .badge-offer { @apply bg-amber-500/15 text-amber-400; }
+  .badge-won { @apply bg-green-500/15 text-green-400; }
+  .badge-lost { @apply bg-red-500/15 text-red-400; }
 }
