@@ -1,13 +1,7 @@
-import { Queue, Worker, QueueEvents } from "bullmq";
-import IORedis from "ioredis";
-
-/** Shared Redis connection for BullMQ */
-export const redisConnection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-  maxRetriesPerRequest: null, // Required by BullMQ
-  enableReadyCheck: false,
-});
-
-// ─── Portal Sync Queue ────────────────────────────────────────────────────────
+/**
+ * Queue module — all Redis/BullMQ usage is lazy and optional.
+ * If REDIS_URL is not set, all queue operations are no-ops.
+ */
 
 export interface PortalSyncJobData {
   propertyId: string;
@@ -15,27 +9,61 @@ export interface PortalSyncJobData {
   portals: string[];
 }
 
-export const portalSyncQueue = new Queue<PortalSyncJobData>("portal-sync", {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 5000 },
-    removeOnComplete: { count: 100 },
-    removeOnFail: { count: 500 },
-  },
-});
+function isRedisConfigured(): boolean {
+  return !!process.env.REDIS_URL;
+}
 
-export const portalSyncEvents = new QueueEvents("portal-sync", {
-  connection: redisConnection,
-});
+async function getRedisConnection() {
+  if (!isRedisConfigured()) throw new Error("REDIS_URL not configured");
+  const { default: IORedis } = await import("ioredis");
+  return new IORedis(process.env.REDIS_URL!, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+}
 
-/**
- * Enqueues a portal sync job for the given property.
- * @param data - Job payload with propertyId and portals to sync
- */
 export async function enqueuePortalSync(data: PortalSyncJobData): Promise<string> {
-  const job = await portalSyncQueue.add("sync", data, {
+  if (!isRedisConfigured()) {
+    console.warn("[queue] Redis not configured — portal sync skipped");
+    return "";
+  }
+  const { Queue } = await import("bullmq");
+  const connection = await getRedisConnection();
+  const queue = new Queue<PortalSyncJobData>("portal-sync", {
+    connection,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 5000 },
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 500 },
+    },
+  });
+  const job = await queue.add("sync", data, {
     jobId: `sync-${data.propertyId}-${Date.now()}`,
   });
+  await queue.close();
+  await connection.quit();
   return job.id ?? "";
+}
+
+export async function scheduleReminderCron(): Promise<void> {
+  if (!isRedisConfigured()) {
+    console.warn("[queue] Redis not configured — reminder cron skipped");
+    return;
+  }
+  const { Queue } = await import("bullmq");
+  const connection = await getRedisConnection();
+  const queue = new Queue("visit-reminders", {
+    connection,
+    defaultJobOptions: {
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 50 },
+    },
+  });
+  await queue.add("check-reminders", {}, {
+    repeat: { pattern: "0 * * * *" },
+    jobId: "reminder-cron",
+  });
+  await queue.close();
+  await connection.quit();
 }
