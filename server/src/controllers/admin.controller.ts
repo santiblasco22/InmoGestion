@@ -26,6 +26,15 @@ export const deleteAgent = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  await prisma.user.delete({ where: { id: agentId } });
+  // Delete in order to satisfy foreign key constraints
+  await prisma.$transaction([
+    prisma.note.deleteMany({ where: { authorId: agentId } }),
+    prisma.refreshToken.deleteMany({ where: { userId: agentId } }),
+    prisma.visit.deleteMany({ where: { agentId } }),
+    prisma.lead.deleteMany({ where: { agentId } }),
+    prisma.property.deleteMany({ where: { agentId } }),
+    prisma.user.delete({ where: { id: agentId } }),
+  ]);
+
   res.status(204).send();
 });
