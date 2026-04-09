@@ -91,7 +91,9 @@ model User {
   phone     String?
   createdAt DateTime @default(now())
 
-  googleId      String?  @unique
+  googleId           String?  @unique
+  resetToken         String?
+  resetTokenExpiry   DateTime?
 
   properties    Property[]
   leads         Lead[]

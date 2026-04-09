@@ -5,12 +5,10 @@ import { prisma } from "../lib/prisma";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { AppError } from "../middleware/errorHandler";
 import { sendWelcomeEmail, sendPasswordResetEmail } from "../lib/resend";
-import { redisConnection } from "../lib/queue";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const RESET_TOKEN_TTL = 60 * 60; // 1 hour in seconds
-const RESET_KEY = (token: string) => `pwd-reset:${token}`;
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour in ms
 
 const SALT_ROUNDS = 12;
 
@@ -195,7 +193,11 @@ export async function forgotPassword(email: string): Promise<void> {
   if (!user) return; // silent — don't leak existence
 
   const token = crypto.randomBytes(32).toString("hex");
-  await redisConnection.set(RESET_KEY(token), user.id, "EX", RESET_TOKEN_TTL);
+  const expiry = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { resetToken: token, resetTokenExpiry: expiry },
+  });
 
   sendPasswordResetEmail(user.email, user.name, token).catch(() => {});
 }
@@ -204,17 +206,19 @@ export async function forgotPassword(email: string): Promise<void> {
  * Validates a reset token and sets the new password.
  */
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
-  const userId = await redisConnection.get(RESET_KEY(token));
-  if (!userId) throw new AppError(400, "El enlace es inválido o expiró", "INVALID_RESET_TOKEN");
+  const user = await prisma.user.findFirst({
+    where: { resetToken: token, resetTokenExpiry: { gt: new Date() } },
+  });
+  if (!user) throw new AppError(400, "El enlace es inválido o expiró", "INVALID_RESET_TOKEN");
 
   const hashed = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashed, resetToken: null, resetTokenExpiry: null },
+  });
 
-  // Invalidate token and all active sessions
-  await Promise.all([
-    redisConnection.del(RESET_KEY(token)),
-    prisma.refreshToken.deleteMany({ where: { userId } }),
-  ]);
+  // Invalidate all active sessions
+  await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
