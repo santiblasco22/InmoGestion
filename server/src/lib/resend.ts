@@ -1,6 +1,10 @@
 import { Resend } from "resend";
 
-export const resend = new Resend(process.env.RESEND_API_KEY);
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@inmogestion.com";
 
@@ -10,6 +14,8 @@ const FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@inmogestion.com";
  * Sends a welcome email to a newly registered agent.
  */
 export async function sendWelcomeEmail(to: string, name: string): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
   await resend.emails.send({
     from: FROM,
     to,
@@ -44,6 +50,8 @@ export async function sendVisitConfirmation(
   scheduledAt: Date,
   visitType: string
 ): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
   const dateStr = scheduledAt.toLocaleDateString("es-AR", {
     weekday: "long",
     year: "numeric",
@@ -91,6 +99,8 @@ export async function sendNewLeadNotification(
   leadPhone: string,
   propertyTitle: string
 ): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
   await resend.emails.send({
     from: FROM,
     to: agentEmail,
