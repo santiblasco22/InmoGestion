@@ -7,7 +7,6 @@ import path from "path";
 import apiRoutes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { prisma } from "./lib/prisma";
-import { scheduleReminderCron } from "./lib/queue";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -71,17 +70,17 @@ async function bootstrap() {
   console.log("✓ Database connected");
 
   // Start visit reminder cron (runs every hour via BullMQ — optional, requires Redis)
-  if (process.env.REDIS_URL) {
+  if (process.env.REDIS_URL && process.env.REDIS_URL !== "redis://localhost:6379") {
     try {
-      const { scheduleReminderCron: startCron } = await import("./lib/queue");
-      await startCron();
+      const { scheduleReminderCron } = await import("./lib/queue");
+      await scheduleReminderCron();
       await import("./workers/reminders.worker");
       console.log("✓ Visit reminder cron scheduled");
     } catch (err) {
       console.warn("⚠ Could not schedule reminder cron:", (err as Error).message);
     }
   } else {
-    console.warn("⚠ REDIS_URL not set — reminder cron disabled");
+    console.warn("⚠ Redis no configurado — recordatorios deshabilitados");
   }
 
   app.listen(PORT, () => {
