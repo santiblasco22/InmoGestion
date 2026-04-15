@@ -1,6 +1,7 @@
 import { Prisma, LeadStage, LeadSource, Currency } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
+import { matchProperties } from "../lib/ai";
 
 export interface LeadFilters {
   stage?: LeadStage;
@@ -19,6 +20,11 @@ export interface CreateLeadInput {
   source: LeadSource;
   stage?: LeadStage;
   propertyIds?: string[];
+  prefZones?: string[];
+  prefTypes?: string[];
+  prefMinRooms?: number;
+  prefMaxRooms?: number;
+  prefCondition?: string;
 }
 
 /**
@@ -89,11 +95,12 @@ export async function getLead(id: string, agentId: string) {
 
 /**
  * Creates a new lead and optionally links it to interested properties.
+ * If agent has autoMatchProperties=true and pref fields are present, auto-runs AI matching.
  */
 export async function createLead(agentId: string, input: CreateLeadInput) {
   const { propertyIds, budget, ...rest } = input;
 
-  return prisma.lead.create({
+  const lead = await prisma.lead.create({
     data: {
       ...rest,
       budget: budget !== undefined ? new Prisma.Decimal(budget) : undefined,
@@ -104,6 +111,39 @@ export async function createLead(agentId: string, input: CreateLeadInput) {
     },
     include: { interestedProperties: { select: { id: true, title: true } } },
   });
+
+  // Feature 3: Auto-match properties when pref fields are present
+  const hasPrefFields = (input.prefZones?.length ?? 0) > 0 || (input.prefTypes?.length ?? 0) > 0 || input.prefMinRooms || input.prefMaxRooms;
+  if (hasPrefFields && !propertyIds?.length) {
+    const agent = await prisma.user.findUnique({ where: { id: agentId }, select: { autoMatchProperties: true } });
+    if (agent?.autoMatchProperties) {
+      // Fire-and-forget: run AI match and attach top result
+      (async () => {
+        try {
+          const props = await prisma.property.findMany({
+            where: { agentId, status: "DISPONIBLE" },
+            select: { id: true, title: true, price: true, currency: true, type: true, neighborhood: true, city: true, rooms: true, area: true, status: true },
+            take: 20,
+          });
+          if (!props.length) return;
+          const matches = await matchProperties(
+            { name: lead.name, budget: lead.budget?.toString() ?? null, budgetCurrency: lead.budgetCurrency, notes: [] },
+            props.map((p) => ({ ...p, price: p.price.toString(), area: p.area.toString() }))
+          );
+          if (matches[0]?.propertyId) {
+            await prisma.lead.update({
+              where: { id: lead.id },
+              data: { interestedProperties: { connect: [{ id: matches[0].propertyId }] } },
+            });
+          }
+        } catch {
+          // Silent fail — lead is already created
+        }
+      })();
+    }
+  }
+
+  return lead;
 }
 
 /**

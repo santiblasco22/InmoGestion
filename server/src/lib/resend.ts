@@ -90,6 +90,69 @@ export async function sendVisitConfirmation(
 }
 
 /**
+ * Sends a daily digest email to an agent.
+ */
+export async function sendDailyDigest(
+  to: string,
+  agentName: string,
+  digest: {
+    urgentLeads: { name: string; daysSince: number; score?: number | null }[];
+    todayVisits: { clientName: string; propertyTitle: string; time: string }[];
+    topLeads: { name: string; score: number }[];
+  }
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
+
+  const urgentSection = digest.urgentLeads.length
+    ? digest.urgentLeads
+        .map((l) => `<li><strong>${l.name}</strong> — sin actividad hace ${l.daysSince} días${l.score != null ? ` · Score: ${l.score}` : ""}</li>`)
+        .join("")
+    : "<li style='color:#64748B'>Ninguno por ahora</li>";
+
+  const visitsSection = digest.todayVisits.length
+    ? digest.todayVisits
+        .map((v) => `<li>${v.time} — <strong>${v.propertyTitle}</strong> con ${v.clientName}</li>`)
+        .join("")
+    : "<li style='color:#64748B'>Sin visitas hoy</li>";
+
+  const topSection = digest.topLeads.length
+    ? digest.topLeads
+        .map((l) => `<li><strong>${l.name}</strong> — Score IA: ${l.score}</li>`)
+        .join("")
+    : "<li style='color:#64748B'>Sin leads analizados aún</li>";
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `☀️ Tu resumen diario — ${new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #0F2942; padding: 24px; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">InmoGestión · Resumen del día</h1>
+        </div>
+        <div style="background: white; padding: 32px; border: 1px solid #E2E8F0; border-radius: 0 0 8px 8px;">
+          <p style="color: #64748B;">Hola <strong>${agentName}</strong>, acá está tu resumen de hoy:</p>
+
+          <h3 style="color: #B45309; font-size: 14px; margin-bottom: 8px;">⚠️ Leads que necesitan seguimiento</h3>
+          <ul style="color: #0F172A; font-size: 13px; line-height: 1.8; margin: 0 0 20px;">${urgentSection}</ul>
+
+          <h3 style="color: #0F2942; font-size: 14px; margin-bottom: 8px;">📅 Visitas de hoy</h3>
+          <ul style="color: #0F172A; font-size: 13px; line-height: 1.8; margin: 0 0 20px;">${visitsSection}</ul>
+
+          <h3 style="color: #0F6B3B; font-size: 14px; margin-bottom: 8px;">🏆 Top leads por score IA</h3>
+          <ul style="color: #0F172A; font-size: 13px; line-height: 1.8; margin: 0 0 24px;">${topSection}</ul>
+
+          <a href="${process.env.CLIENT_URL ?? "https://inmo-gestion.vercel.app"}" style="display: inline-block; background: #1A7FA8; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500;">
+            Abrir CRM →
+          </a>
+        </div>
+      </div>
+    `,
+  });
+}
+
+/**
  * Sends a lead notification to the agent when a new inquiry arrives via the portal.
  */
 export async function sendNewLeadNotification(

@@ -9,10 +9,10 @@ import { toast } from "sonner";
 import {
   User, Bell, Shield, Loader2,
   Phone, Mail, BadgeCheck, Eye, EyeOff, CheckCircle2,
-  AlertCircle, LogOut,
+  AlertCircle, LogOut, Zap,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { authApi } from "@/lib/api";
+import { authApi, settingsApi, ApiAutomationSettings } from "@/lib/api";
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
@@ -302,6 +302,95 @@ function NotificationsSection() {
   );
 }
 
+// ─── Automation section ───────────────────────────────────────────────────────
+
+const AUTOMATION_ITEMS: {
+  key: keyof ApiAutomationSettings;
+  title: string;
+  desc: string;
+}[] = [
+  {
+    key: "autoAdvanceStage",
+    title: "Auto-avanzar etapa del lead",
+    desc: "Al crear una visita → mueve el lead a Visita Agendada. Al marcarla como realizada → avanza a Oferta Realizada.",
+  },
+  {
+    key: "autoMatchProperties",
+    title: "Auto-matching de propiedades con IA",
+    desc: "Al crear un lead con preferencias de búsqueda, la IA asigna automáticamente la propiedad más compatible.",
+  },
+  {
+    key: "dailyDigestEnabled",
+    title: "Resumen diario por email",
+    desc: "Recibís un email cada mañana con leads urgentes, visitas del día y top scores IA. Requiere Resend configurado.",
+  },
+  {
+    key: "autoPortalSync",
+    title: "Sincronización automática de portales",
+    desc: "Al cambiar el estado de una propiedad a Disponible, se publica automáticamente en todos los portales.",
+  },
+];
+
+function AutomationSection() {
+  const [settings, setSettings] = useState<ApiAutomationSettings | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    settingsApi.getAutomation()
+      .then(setSettings)
+      .catch(() => {
+        // Use safe defaults if backend doesn't support this endpoint yet
+        setSettings({ autoAdvanceStage: true, autoMatchProperties: false, dailyDigestEnabled: false, autoPortalSync: false });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async (key: keyof ApiAutomationSettings) => {
+    if (!settings) return;
+    const newValue = !settings[key];
+    setSaving(key);
+    try {
+      const updated = await settingsApi.updateAutomation({ [key]: newValue });
+      setSettings(updated);
+      toast.success("Automatización actualizada");
+    } catch {
+      toast.error("No se pudo guardar");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <Section title="Automatizaciones" description="Qué acciones ejecuta el sistema automáticamente" icon={Zap}>
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+        </div>
+      ) : (
+        <div className="divide-y">
+          {AUTOMATION_ITEMS.map((item) => (
+            <div key={item.key} className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
+              <div className="flex-1">
+                <p className="text-sm font-medium">{item.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+              </div>
+              {saving === item.key ? (
+                <Loader2 className="h-4 w-4 animate-spin shrink-0 mt-0.5 text-muted-foreground" />
+              ) : (
+                <Switch
+                  checked={settings?.[item.key] ?? false}
+                  onCheckedChange={() => toggle(item.key)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 // ─── Account section ──────────────────────────────────────────────────────────
 
 function AccountSection() {
@@ -367,6 +456,7 @@ export default function SettingsPage() {
       </div>
 
       <ProfileSection />
+      <AutomationSection />
       <NotificationsSection />
       <PasswordSection />
       <AccountSection />

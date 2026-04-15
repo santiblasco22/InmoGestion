@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2 } from "lucide-react";
+import { Mail, Phone, MessageCircle, Building2, Plus, Send, Trash2, UserPlus, Loader2, AlertTriangle } from "lucide-react";
+import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
+import { LeadAIPanel } from "@/components/LeadAIPanel";
 
 type Stage = ApiLead["stage"];
 
@@ -42,17 +44,37 @@ const SOURCE_LABELS: Record<string, string> = {
 
 // ─── Draggable card ───────────────────────────────────────────────────────────
 
+const FOLLOWUP_DAYS = 3;
+
+function ScorePill({ score }: { score?: number | null }) {
+  if (score == null) return null;
+  const color = score >= 70 ? "bg-green-500/15 text-green-400" : score >= 40 ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400";
+  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color}`}>{score}</span>;
+}
+
 function LeadCard({ lead, onClick, isDragging = false }: { lead: ApiLead; onClick?: () => void; isDragging?: boolean }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: lead.id });
   const ui = toUILead(lead);
   const style = transform ? { transform: `translate(${transform.x}px,${transform.y}px)` } : undefined;
+  const daysSinceUpdate = differenceInDays(new Date(), new Date(lead.updatedAt));
+  const needsFollowUp = daysSinceUpdate >= FOLLOWUP_DAYS && !["CERRADO_GANADO", "CERRADO_PERDIDO"].includes(lead.stage);
 
   return (
     <div
       ref={setNodeRef} style={style} {...listeners} {...attributes} onClick={onClick}
       className={`w-full text-left rounded-lg border border-t-2 ${stageTopColor[lead.stage]} bg-card p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer select-none ${isDragging ? "opacity-40" : ""}`}
     >
-      <p className="text-sm font-medium text-foreground">{lead.name}</p>
+      <div className="flex items-start justify-between gap-1">
+        <p className="text-sm font-medium text-foreground leading-tight">{lead.name}</p>
+        <div className="flex items-center gap-1 shrink-0">
+          {needsFollowUp && (
+            <span title={`Sin actividad hace ${daysSinceUpdate} días`}>
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+            </span>
+          )}
+          <ScorePill score={lead.aiScore} />
+        </div>
+      </div>
       <p className="text-xs text-muted-foreground mt-0.5 truncate">{ui.propertyInterest}</p>
       <div className="flex items-center justify-between mt-2">
         <span className="text-xs font-medium text-foreground">{ui.budget}</span>
@@ -196,6 +218,9 @@ function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => 
             </div>
           </div>
 
+          {/* AI Panel */}
+          <LeadAIPanel leadId={lead.id} />
+
           {/* Delete */}
           <div className="pt-2 border-t">
             <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full" onClick={handleDelete}>
@@ -210,13 +235,26 @@ function LeadPanel({ leadId, onClose }: { leadId: string | null; onClose: () => 
 
 // ─── Create lead dialog ───────────────────────────────────────────────────────
 
-const EMPTY_FORM = { name: "", email: "", phone: "", budget: "", source: "WEB", propertyId: "", stage: "NUEVO" as Stage };
+const PROP_TYPES = ["CASA", "DEPTO", "PH", "OFICINA", "LOCAL", "TERRENO"] as const;
+const PROP_TYPE_LABELS: Record<string, string> = {
+  CASA: "Casa", DEPTO: "Depto", PH: "PH", OFICINA: "Oficina", LOCAL: "Local", TERRENO: "Terreno",
+};
+
+const EMPTY_FORM = {
+  name: "", email: "", phone: "", budget: "", source: "WEB", propertyId: "", stage: "NUEVO" as Stage,
+  prefZones: "", prefTypes: [] as string[], prefMinRooms: "", prefMaxRooms: "", prefCondition: "",
+};
 
 function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { addLead, properties } = useAppStore();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const set = (f: string, v: string) => setForm((x) => ({ ...x, [f]: v }));
+
+  const toggleType = (t: string) => setForm((x) => ({
+    ...x,
+    prefTypes: x.prefTypes.includes(t) ? x.prefTypes.filter((v) => v !== t) : [...x.prefTypes, t],
+  }));
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return;
@@ -227,9 +265,14 @@ function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => voi
         budget: form.budget ? Number(form.budget) : undefined,
         source: form.source as ApiLead["source"], stage: form.stage,
         propertyIds: form.propertyId ? [form.propertyId] : [],
+        prefZones: form.prefZones ? form.prefZones.split(",").map((z) => z.trim()).filter(Boolean) : [],
+        prefTypes: form.prefTypes,
+        prefMinRooms: form.prefMinRooms ? Number(form.prefMinRooms) : undefined,
+        prefMaxRooms: form.prefMaxRooms ? Number(form.prefMaxRooms) : undefined,
+        prefCondition: form.prefCondition || undefined,
       } as never);
       toast.success(`Lead "${form.name}" creado`);
-      setForm({ name: "", email: "", phone: "", budget: "", source: "WEB", propertyId: "", stage: "NUEVO" });
+      setForm(EMPTY_FORM);
       onClose();
     } catch { toast.error("No se pudo crear el lead"); }
     finally { setSaving(false); }
@@ -237,7 +280,7 @@ function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); else setForm(EMPTY_FORM); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Nuevo Lead</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
@@ -270,6 +313,52 @@ function CreateLeadDialog({ open, onClose }: { open: boolean; onClose: () => voi
               <Select value={form.stage} onValueChange={(v) => set("stage", v)}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>{STAGES.map((s) => <SelectItem key={s} value={s}>{STAGE_LABELS[s]}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Preference fields */}
+          <div className="border-t pt-3 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Preferencias de búsqueda</p>
+            <div>
+              <Label>Zonas de interés</Label>
+              <Input placeholder="Ej: Palermo, Belgrano, Villa Crespo" value={form.prefZones} onChange={(e) => set("prefZones", e.target.value)} className="mt-1" />
+              <p className="text-[10px] text-muted-foreground mt-0.5">Separar con comas</p>
+            </div>
+            <div>
+              <Label>Tipos de propiedad</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {PROP_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => toggleType(t)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${form.prefTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:bg-accent/50"}`}
+                  >
+                    {PROP_TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Ambientes mín.</Label>
+                <Input type="number" min={1} placeholder="1" value={form.prefMinRooms} onChange={(e) => set("prefMinRooms", e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <Label>Ambientes máx.</Label>
+                <Input type="number" min={1} placeholder="5" value={form.prefMaxRooms} onChange={(e) => set("prefMaxRooms", e.target.value)} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label>Modalidad</Label>
+              <Select value={form.prefCondition} onValueChange={(v) => set("prefCondition", v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Cualquiera" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compra">Compra</SelectItem>
+                  <SelectItem value="alquiler">Alquiler</SelectItem>
+                  <SelectItem value="ambos">Ambos</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>

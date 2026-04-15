@@ -293,6 +293,13 @@ export interface ApiLead {
   notes?: ApiNote[];
   interestedProperties?: Pick<ApiProperty, "id" | "title" | "status">[];
   visits?: Pick<ApiVisit, "scheduledAt" | "type">[];
+  aiScore?: number | null;
+  aiSummary?: string | null;
+  prefZones?: string[];
+  prefTypes?: string[];
+  prefMinRooms?: number | null;
+  prefMaxRooms?: number | null;
+  prefCondition?: string | null;
 }
 
 export interface ApiVisit {
@@ -356,6 +363,50 @@ export interface ApiAgentStats {
 export const adminApi = {
   agents: () => api.get<{ agents: ApiAgentStats[] }>("/admin/agents"),
   deleteAgent: (agentId: string) => api.delete<void>(`/admin/agents/${agentId}`),
+};
+
+export interface ApiAIDashboardLead {
+  id: string; name: string; phone?: string | null; email?: string | null;
+  stage: string; source: string; budget?: string | null; budgetCurrency: string;
+  aiScore?: number | null; aiSummary?: string | null; updatedAt: string;
+  visits: { scheduledAt: string }[];
+}
+
+// ─── AI ──────────────────────────────────────────────────────────────────────
+
+export interface ApiLeadAnalysis {
+  score: number;
+  closingProbability: number;
+  recommendation: string;
+  summary: string;
+}
+
+export interface ApiPropertyMatch {
+  propertyId: string;
+  score: number;
+  reason: string;
+  property: Pick<ApiProperty, "id" | "title" | "price" | "currency" | "type" | "neighborhood" | "city" | "rooms" | "area" | "status">;
+}
+
+export const aiApi = {
+  dashboard: () => api.get<{ leads: ApiAIDashboardLead[] }>("/ai/dashboard"),
+  analyzeLead: (leadId: string) => api.get<ApiLeadAnalysis>(`/ai/leads/${leadId}/analyze`),
+  matchProperties: (leadId: string) => api.get<ApiPropertyMatch[]>(`/ai/leads/${leadId}/match-properties`),
+};
+
+// ─── Automation Settings ─────────────────────────────────────────────────────
+
+export interface ApiAutomationSettings {
+  autoAdvanceStage: boolean;
+  autoMatchProperties: boolean;
+  dailyDigestEnabled: boolean;
+  autoPortalSync: boolean;
+}
+
+export const settingsApi = {
+  getAutomation: () => api.get<ApiAutomationSettings>("/settings/automation"),
+  updateAutomation: (data: Partial<ApiAutomationSettings>) =>
+    api.patch<ApiAutomationSettings>("/settings/automation", data),
 };
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

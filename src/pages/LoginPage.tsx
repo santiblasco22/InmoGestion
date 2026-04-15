@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Building2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,8 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isLoading, user } = useAuthStore();
-  const [email, setEmail] = useState("agente@inmogestion.com");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,18 +97,9 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="pt-2 border-t space-y-3">
-            <p className="text-sm text-muted-foreground text-center">
-              ¿No tenés cuenta?{" "}
-              <Link to="/register" className="font-medium text-primary hover:underline">
-                Registrate gratis
-              </Link>
-            </p>
+          <div className="pt-2 border-t">
             <p className="text-xs text-muted-foreground text-center">
-              Demo:{" "}
-              <span className="font-mono text-foreground">agente@inmogestion.com</span>{" "}
-              /{" "}
-              <span className="font-mono text-foreground">demo1234</span>
+              ¿Problemas para ingresar? Contactá al administrador.
             </p>
           </div>
         </div>

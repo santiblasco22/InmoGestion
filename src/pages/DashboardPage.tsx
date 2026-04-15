@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, CalendarDays, TrendingUp, Plus, Eye, ArrowRight } from "lucide-react";
+import { Building2, Users, CalendarDays, TrendingUp, Plus, Eye, ArrowRight, AlertTriangle, Sparkles, Clock } from "lucide-react";
+import { differenceInDays } from "date-fns";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -132,6 +133,113 @@ function QuickLeadDialog({ open, onClose }: { open: boolean; onClose: () => void
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const FOLLOWUP_DAYS = 3;
+const NO_INTEREST_DAYS = 30;
+
+function AlertsWidget() {
+  const navigate = useNavigate();
+  const { leads, visits, properties } = useAppStore();
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+
+  const alerts = useMemo(() => {
+    // Leads urgentes: sin actividad FOLLOWUP_DAYS días, stage activo
+    const urgentLeads = leads
+      .filter((l) => {
+        const days = differenceInDays(today, new Date(l.updatedAt));
+        return days >= FOLLOWUP_DAYS && !["CERRADO_GANADO", "CERRADO_PERDIDO"].includes(l.stage);
+      })
+      .sort((a, b) => (b.aiScore ?? -1) - (a.aiScore ?? -1))
+      .slice(0, 4);
+
+    // Visitas de hoy
+    const todayVisits = visits
+      .filter((v) => v.scheduledAt?.startsWith(todayStr) && v.status === "PENDIENTE")
+      .slice(0, 3);
+
+    // Propiedades sin interesados en 30 días
+    const staleProps = properties
+      .filter((p) => {
+        if (p.status !== "DISPONIBLE") return false;
+        const days = differenceInDays(today, new Date(p.updatedAt));
+        return days >= NO_INTEREST_DAYS && (p._count?.leads ?? 0) === 0;
+      })
+      .slice(0, 3);
+
+    return { urgentLeads, todayVisits, staleProps };
+  }, [leads, visits, properties]);
+
+  const totalAlerts = alerts.urgentLeads.length + alerts.todayVisits.length + alerts.staleProps.length;
+  if (totalAlerts === 0) return null;
+
+  return (
+    <div className="rounded-lg border bg-card shadow-sm">
+      <div className="flex items-center gap-2 border-b px-5 py-3">
+        <AlertTriangle className="h-4 w-4 text-amber-400" />
+        <h2 className="text-sm font-semibold text-foreground">Alertas inteligentes</h2>
+        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold">{totalAlerts}</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x">
+        {/* Leads urgentes */}
+        <div className="p-4 space-y-2">
+          <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />Sin seguimiento ({alerts.urgentLeads.length})
+          </p>
+          {alerts.urgentLeads.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Todo al día</p>
+          ) : (
+            alerts.urgentLeads.map((l) => (
+              <div key={l.id} className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 -mx-1" onClick={() => navigate("/leads")}>
+                <p className="text-xs text-foreground truncate">{l.name}</p>
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <span className="text-[10px] text-muted-foreground">{differenceInDays(today, new Date(l.updatedAt))}d</span>
+                  {l.aiScore != null && (
+                    <span className={`text-[10px] font-bold px-1.5 rounded-full ${l.aiScore >= 70 ? "bg-green-500/15 text-green-400" : l.aiScore >= 40 ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400"}`}>{l.aiScore}</span>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Visitas de hoy */}
+        <div className="p-4 space-y-2">
+          <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5" />Visitas de hoy ({alerts.todayVisits.length})
+          </p>
+          {alerts.todayVisits.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sin visitas hoy</p>
+          ) : (
+            alerts.todayVisits.map((v) => (
+              <div key={v.id} className="cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 -mx-1" onClick={() => navigate("/calendario")}>
+                <p className="text-xs text-foreground truncate">{v.lead?.name ?? "—"}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{v.property?.title ?? "—"}</p>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Propiedades sin interés */}
+        <div className="p-4 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />Sin interesados +{NO_INTEREST_DAYS}d ({alerts.staleProps.length})
+          </p>
+          {alerts.staleProps.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Todas con actividad</p>
+          ) : (
+            alerts.staleProps.map((p) => (
+              <div key={p.id} className="cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 -mx-1" onClick={() => navigate("/propiedades")}>
+                <p className="text-xs text-foreground truncate">{p.title}</p>
+                <p className="text-[10px] text-muted-foreground">{p.neighborhood}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -277,6 +385,8 @@ export default function DashboardPage() {
           <div className="py-10 text-center text-sm text-muted-foreground">No hay visitas programadas próximamente.</div>
         )}
       </div>
+
+      <AlertsWidget />
 
       <QuickVisitDialog open={visitDialogOpen} onClose={() => setVisitDialogOpen(false)} />
       <QuickLeadDialog open={leadDialogOpen} onClose={() => setLeadDialogOpen(false)} />

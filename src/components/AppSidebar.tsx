@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -30,6 +31,7 @@ const navItems = [
   { title: "Leads (CRM)", url: "/leads", icon: Users },
   { title: "Calendario", url: "/calendario", icon: CalendarDays },
   { title: "Analíticas", url: "/analiticas", icon: BarChart3 },
+  { title: "IA Dashboard", url: "/ia", icon: Sparkles },
   { title: "Configuración", url: "/configuracion", icon: Settings },
 ];
 

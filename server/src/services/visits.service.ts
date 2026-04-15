@@ -93,7 +93,7 @@ export async function createVisit(agentId: string, input: CreateVisitInput) {
       agentId,
     },
     include: {
-      lead: { select: { id: true, name: true, email: true } },
+      lead: { select: { id: true, name: true, email: true, stage: true } },
       property: { select: { id: true, title: true } },
     },
   });
@@ -107,6 +107,15 @@ export async function createVisit(agentId: string, input: CreateVisitInput) {
       scheduledAt,
       input.type
     ).catch(() => {});
+  }
+
+  // Feature 1: Auto-advance lead stage to VISITA_AGENDADA
+  const STAGES_BEFORE_VISIT = ["NUEVO", "CONTACTADO"];
+  if (STAGES_BEFORE_VISIT.includes(visit.lead.stage)) {
+    const agent = await prisma.user.findUnique({ where: { id: agentId }, select: { autoAdvanceStage: true } });
+    if (agent?.autoAdvanceStage) {
+      prisma.lead.update({ where: { id: input.leadId }, data: { stage: "VISITA_AGENDADA" } }).catch(() => {});
+    }
   }
 
   return visit;
@@ -133,10 +142,23 @@ export async function updateVisit(
 
 /**
  * Updates only the status of a visit (PENDIENTE → REALIZADA | CANCELADA).
+ * If marked REALIZADA and agent has autoAdvanceStage, advances lead to OFERTA_REALIZADA.
  */
 export async function updateVisitStatus(id: string, agentId: string, status: VisitStatus) {
-  await assertVisitOwner(id, agentId);
-  return prisma.visit.update({ where: { id }, data: { status } });
+  const visit = await assertVisitOwner(id, agentId);
+  const updated = await prisma.visit.update({ where: { id }, data: { status } });
+
+  if (status === "REALIZADA") {
+    const [agent, lead] = await Promise.all([
+      prisma.user.findUnique({ where: { id: agentId }, select: { autoAdvanceStage: true } }),
+      prisma.lead.findUnique({ where: { id: visit.leadId }, select: { stage: true } }),
+    ]);
+    if (agent?.autoAdvanceStage && lead?.stage === "VISITA_AGENDADA") {
+      prisma.lead.update({ where: { id: visit.leadId }, data: { stage: "OFERTA_REALIZADA" } }).catch(() => {});
+    }
+  }
+
+  return updated;
 }
 
 /**

@@ -7,6 +7,7 @@ import path from "path";
 import apiRoutes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { prisma } from "./lib/prisma";
+import { startDigestCron } from "./lib/digest";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -76,6 +77,8 @@ async function bootstrap() {
     console.log(`✓ Server running on http://localhost:${PORT}`);
     console.log(`  Environment: ${process.env.NODE_ENV ?? "development"}`);
   });
+
+  startDigestCron();
 }
 
 bootstrap().catch((err) => {

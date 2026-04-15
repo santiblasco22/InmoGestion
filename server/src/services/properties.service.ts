@@ -2,6 +2,7 @@ import { Prisma, PropertyStatus, PropertyType, Currency } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { uploadToR2, deleteFromR2, keyFromUrl } from "../lib/r2";
+import { triggerPortalSync } from "../lib/portals";
 
 export interface PropertyFilters {
   status?: PropertyStatus;
@@ -140,19 +141,30 @@ export async function createProperty(
 
 /**
  * Updates an existing property. Only the owning agent can update.
+ * If status changes to DISPONIBLE and agent has autoPortalSync=true, triggers portal sync.
  */
 export async function updateProperty(
   id: string,
   agentId: string,
   input: Partial<CreatePropertyInput>
 ) {
-  await assertPropertyOwner(id, agentId);
+  const existing = await assertPropertyOwner(id, agentId);
 
   const data: Prisma.PropertyUpdateInput = { ...input };
   if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
   if (input.area !== undefined) data.area = new Prisma.Decimal(input.area);
 
-  return prisma.property.update({ where: { id }, data });
+  const updated = await prisma.property.update({ where: { id }, data });
+
+  // Feature 5: Auto-sync portals when property becomes DISPONIBLE
+  if (input.status === "DISPONIBLE" && existing.status !== "DISPONIBLE") {
+    const agent = await prisma.user.findUnique({ where: { id: agentId }, select: { autoPortalSync: true } });
+    if (agent?.autoPortalSync) {
+      triggerPortalSync(id, agentId).catch(() => {});
+    }
+  }
+
+  return updated;
 }
 
 /**

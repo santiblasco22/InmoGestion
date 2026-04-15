@@ -12,8 +12,8 @@ import CalendarPage from "./pages/CalendarPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
+import AIDashboardPage from "./pages/AIDashboardPage";
 import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
 import NotFound from "./pages/NotFound.tsx";
 import { useAuthStore } from "./store/useAuthStore";
 import { useAppStore } from "./store/useAppStore";
@@ -76,7 +76,7 @@ const App = () => {
           <DataBootstrap />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route
               path="/*"
               element={
@@ -90,6 +90,7 @@ const App = () => {
                       <Route path="/analiticas" element={<AnalyticsPage />} />
                       <Route path="/configuracion" element={<SettingsPage />} />
                       <Route path="/admin" element={<AdminPage />} />
+                      <Route path="/ia" element={<AIDashboardPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppLayout>

@@ -12,6 +12,11 @@ const leadBodySchema = z.object({
   source: z.enum(["WHATSAPP", "WEB", "REFERIDO", "PORTAL", "OTRO"]),
   stage: z.enum(["NUEVO", "CONTACTADO", "VISITA_AGENDADA", "OFERTA_REALIZADA", "CERRADO_GANADO", "CERRADO_PERDIDO"]).optional(),
   propertyIds: z.array(z.string()).optional(),
+  prefZones: z.array(z.string()).optional(),
+  prefTypes: z.array(z.string()).optional(),
+  prefMinRooms: z.coerce.number().int().positive().optional(),
+  prefMaxRooms: z.coerce.number().int().positive().optional(),
+  prefCondition: z.enum(["compra", "alquiler", "ambos"]).optional(),
 });
 
 const stageSchema = z.object({

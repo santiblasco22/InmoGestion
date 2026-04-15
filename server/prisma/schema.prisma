@@ -91,6 +91,12 @@ model User {
   phone     String?
   createdAt DateTime @default(now())
 
+  // Automation preferences
+  autoAdvanceStage    Boolean @default(true)
+  autoMatchProperties Boolean @default(false)
+  dailyDigestEnabled  Boolean @default(false)
+  autoPortalSync      Boolean @default(false)
+
   properties    Property[]
   leads         Lead[]
   visits        Visit[]
@@ -153,6 +159,15 @@ model Lead {
   agentId        String
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+
+  // Preferencias estructuradas
+  prefZones      String[]
+  prefTypes      String[]
+  prefMinRooms   Int?
+  prefMaxRooms   Int?
+  prefCondition  String?    // "compra" | "alquiler" | "ambos"
+  aiScore        Int?
+  aiSummary      String?
 
   agent                User       @relation(fields: [agentId], references: [id])
   notes                Note[]
